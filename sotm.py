@@ -14,6 +14,7 @@ import pandas as pd
 import pandas_ta as ta
 import yfinance as yf
 import sqlite3
+import math
 import traceback
 import pickle
 import numpy as np
@@ -235,55 +236,36 @@ print("Corrected start:", start_date, " finish: ", finish_date)
 ####
 # Calculate indicators
 
+slope = {}
+adjusted_slope = {}
+r_sq = {}  # R squared
+annualized_return = {}
+adjusted_slope = {}
+
+
 # natural logarithm of price
 stock_df.insert(0, 'ln', 0)
 stock_df['ln'] = np.log(stock_df['Adj Close'] )
 
 
-regression = {}  # regression of the natural logarithm of price
-x = stock_df['ln'].values.reshape(-1, 1)
+# regression of the natural logarithm of price
+y = stock_df['ln'].values.reshape(-1, 1)
 
 # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-y = stock_df['Date'].values.astype("datetime64[D]").astype("float")
+x = stock_df['Date'].values.astype("datetime64[D]").astype("float")
 
-linear_regressor = LinearRegression()
-result = linear_regressor.fit(x, y)
-regression[stock] = result.coef_[0]  # slope
+model = LinearRegression().fit(x, y)
+slope[stock] = model.coef_[0]
 
+r_sq[stock] = model.score(x, y)
 
-r_sq = {}  # R squared
-r_sq[stock] = linear_regressor.score(x, y)
+annualized_return[stock] = pow(math.exp(slope[stock]), 250)
 
-annualized_return = {}
-
-adjusted_slope = {}
-
+adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
 
 for stock in stock_list:
     # print(stock)
 
-    # Rate of change
-    try:
-        last_price = stock_df.loc[stock, finish_date].get("close")
-    except KeyError:
-        print("Failed to get finish price for " + stock)
-        continue
-
-    try:
-        first_price = stock_df.loc[stock, start_date].get("close")
-    except KeyError:
-        print("Failed to get start price for " + stock)
-        continue
-
-    ROC[stock] = round(((last_price - first_price) / first_price) * 100, 2)
-
-    # Relative Strength Index (3 days)
-    temp = ta.rsi(stock_df.loc[stock, :].get("close"), length=3)
-    RSI[stock] = temp[finish_date]
-
-    # Average Volume last 20 days
-    temp = stock_df.loc[stock, :].get("volume").rolling(window=20).mean()
-    average_volume[stock] = temp[finish_date]
 
 # print(ROC)
 print("Highest Rate of Change% from start to finish:")
