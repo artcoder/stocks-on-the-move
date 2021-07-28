@@ -11,19 +11,19 @@ from datetime import timedelta
 import operator
 import sys
 import pandas as pd
-import pandas_ta as ta
 import yfinance as yf
 import sqlite3
 import math
-import traceback
 import pickle
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import pandas_ta as ta
+# import traceback
 
 database_filename = 'stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
-pickle_filename = r'.\stock_df_0.1.0.pkl'
-download = False
+pickle_filename = r'.\stock_df_0.0.0.pkl'
+download = True
 
 # Set requested date range
 finish_date = datetime.date.today()
@@ -198,9 +198,11 @@ con.close()
 
 # Correct start and finish dates so they are trading days
 trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
+print('Trading days:', trading_days)
 
 start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
                                 start_date).tolist()
+print(start_day_range)
 start_day_range.reverse()
 found_start_day = False
 
@@ -247,55 +249,21 @@ adjusted_slope = {}
 stock_df.insert(0, 'ln', 0)
 stock_df['ln'] = np.log(stock_df['Adj Close'] )
 
-
-# regression of the natural logarithm of price
-y = stock_df['ln'].values.reshape(-1, 1)
-
-# Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-x = stock_df['Date'].values.astype("datetime64[D]").astype("float")
-
-model = LinearRegression().fit(x, y)
-slope[stock] = model.coef_[0]
-
-r_sq[stock] = model.score(x, y)
-
-annualized_return[stock] = pow(math.exp(slope[stock]), 250)
-
-adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
-
 for stock in stock_list:
     # print(stock)
 
+    # Regression of the natural logarithm of price
+    # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
+    x = stock_df['Date'].values.astype("datetime64[D]").astype("float")
+    y = stock_df['ln'].values.reshape(-1, 1)
+    model = LinearRegression().fit(x, y)
+    slope[stock] = model.coef_[0]
 
-# print(ROC)
-print("Highest Rate of Change% from start to finish:")
-output = sorted(ROC.items(), key=operator.itemgetter(1), reverse=True)
-# print(output)
+    r_sq[stock] = model.score(x, y)
 
-ranking = ''
-count = 1
-for i in output:
-    ranking = str(count)
-    stock_symbol = i[0]
-    rate_of_change = str(i[1])
-    volume_summary = ''
+    annualized_return[stock] = pow(math.exp(slope[stock]), 250)
 
-    if RSI[i[0]] < 50:
-        RSI_summary = 'OK'
-    else:
-        RSI_summary = 'Overbought'
-        ranking = '!'
+    adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
 
-    if average_volume[i[0]] > 1000000:
-        volume_summary = 'OK'
-        count = count + 1  # only count higher volume stocks
-    else:
-        volume_summary = 'Low'
-        ranking = 'X'
-
-    print(ranking + ') ' + stock_symbol + ' ' + rate_of_change + '%', end='')
-    print(' Volume ' + volume_summary + ': ' + str(average_volume[i[0]]) + ', ', end='')
-    print('RSI ' + RSI_summary + ': ' + str(round(RSI[i[0]], 1)))
-
-    if count >= 11:
-        break
+output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
+print(output)
