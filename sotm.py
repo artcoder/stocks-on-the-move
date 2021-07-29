@@ -20,7 +20,7 @@ from sklearn.linear_model import LinearRegression
 import pandas_ta as ta
 # import traceback
 
-database_filename = 'stock_data.sqlite3'
+database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_df_0.0.0.pkl'
 download = True
@@ -155,11 +155,12 @@ Select * From stock_data
 Where Date >= ? and Date <= ?
 '''
 cur.execute(sql,
-            [start_date, finish_date])
+            [start_date - timedelta(days=extra_days), finish_date])
 
+# print('[start_date, finish_date]:', [start_date, finish_date])
 stock_df = pd.DataFrame(cur.fetchall(),
                         columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-stock_df = stock_df.set_index(['ticker', 'date'])
+stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
 
 # Find actual start date
 query = '''
@@ -198,11 +199,11 @@ con.close()
 
 # Correct start and finish dates so they are trading days
 trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
-print('Trading days:', trading_days)
+# print('Trading days from db:', trading_days)
 
 start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
                                 start_date).tolist()
-print(start_day_range)
+# print('start_day_range:', start_day_range)
 start_day_range.reverse()
 found_start_day = False
 
@@ -247,15 +248,16 @@ adjusted_slope = {}
 
 # natural logarithm of price
 stock_df.insert(0, 'ln', 0)
-stock_df['ln'] = np.log(stock_df['Adj Close'] )
+stock_df['ln'] = np.log(stock_df['close'] )
 
+#print(stock_df)
 for stock in stock_list:
-    # print(stock)
+    #print(stock_df.loc[stock])
 
     # Regression of the natural logarithm of price
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    x = stock_df['Date'].values.astype("datetime64[D]").astype("float")
-    y = stock_df['ln'].values.reshape(-1, 1)
+    x = stock_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+    y = stock_df.loc[stock].get('ln').values
     model = LinearRegression().fit(x, y)
     slope[stock] = model.coef_[0]
 
@@ -266,4 +268,5 @@ for stock in stock_list:
     adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
-print(output)
+for t in output[0:10]:
+    print(t)
