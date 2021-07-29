@@ -1,5 +1,5 @@
 # Python code to automate a stock trading strategy
-# Based on an idea from Stocks on the Move by Andreas F. Clenow
+# Based on an idea from _Stocks on the Move_ by Andreas F. Clenow
 #
 ###
 # David Guilbeau
@@ -38,7 +38,7 @@ print("Requested start:", start_date, "finish:", finish_date)
 # How many calendar days?
 # 90 * 365.25 / 253 = 130 calendar days
 
-extra_days = 5  # extra days to try to download in case the start date is not a trading day
+extra_days = 5  # extra days to look at in case the start date is not a trading day
 
 
 def find_download_start_date(requested_start_date):
@@ -144,7 +144,7 @@ download_start_date = find_download_start_date(start_date)
 
 download_finish_date = finish_date
 
-if download_start_date < download_finish_date:
+if download_start_date <= download_finish_date:
     download_stock_data(download_start_date, download_finish_date)
 else:
     print("Not downloading")
