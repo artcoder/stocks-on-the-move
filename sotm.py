@@ -19,6 +19,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import pandas_ta as ta
 # import traceback
+import plotly.express as px
 
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
@@ -155,12 +156,14 @@ Select * From stock_data
 Where Date >= ? and Date <= ?
 '''
 cur.execute(sql,
-            [start_date - timedelta(days=extra_days), finish_date])
+            [start_date - timedelta(days=extra_days), finish_date + timedelta(days=1)])
 
 # print('[start_date, finish_date]:', [start_date, finish_date])
 stock_df = pd.DataFrame(cur.fetchall(),
                         columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
+
+print('stock_df:', stock_df)
 
 # Find actual start date
 query = '''
