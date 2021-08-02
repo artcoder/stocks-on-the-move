@@ -25,7 +25,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_df_0.0.0.pkl'
-download = True
+download = False
 
 # Set requested date range
 finish_date = datetime.date.today()
@@ -122,9 +122,12 @@ def download_stock_data(download_start_date, download_finish_date):
                               t_df.iloc[i].get('Open'),
                               t_df.iloc[i].get('Volume')))
         except sqlite3.IntegrityError:
-            print("Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end="\r")
+            print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
 
     con.commit()
+    print("\r                                                    ")
+
+
 #
 
 
@@ -244,34 +247,34 @@ r_sq = {}  # R squared
 annualized_return = {}
 adjusted_slope = {}
 
+x = {}
+y = {}
+plotly_x = {}
+predicted_y = {}
+
 # natural logarithm of price
 stock_df.insert(0, 'ln', 0)
 stock_df['ln'] = np.log(stock_df['close'])
 
-# print(stock_df)
+print('Calculating indicators')
 count = 0
 for stock in stock_list:
+    print("\r", stock, end='')
     # print(stock_df.loc[stock])
 
     # Regression of the natural logarithm of price
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    x = stock_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
-    plotly_x = stock_df.loc[stock].index.values.astype("datetime64[D]")
-    y = stock_df.loc[stock].get('ln').values
+    x[stock] = stock_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+    plotly_x[stock] = stock_df.loc[stock].index.values.astype("datetime64[D]")
+    y[stock] = stock_df.loc[stock].get('ln').values
 
-    fig1 = px.line(x=plotly_x, y=y, title=stock)
+    model = LinearRegression().fit(x[stock], y[stock])
 
-    model = LinearRegression().fit(x, y)
-
-    predicted_y = model.predict(x)
-
-    fig2 = px.line(x=plotly_x, y=predicted_y, title=stock)
-    fig_all = go.Figure(data=fig1.data + fig2.data)
-    # fig_all.show()
+    predicted_y[stock] = model.predict(x[stock])
 
     slope[stock] = model.coef_[0]
 
-    r_sq[stock] = model.score(x, y)
+    r_sq[stock] = model.score(x[stock], y[stock])
 
     annualized_return[stock] = pow(math.exp(slope[stock]), 250)
 
@@ -280,7 +283,14 @@ for stock in stock_list:
     # count = count + 1
     # if count > 5:
     #     break
+print("\r     ")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 for t in output[0:10]:
-    print(t)
+    print(t[0], t[1])
+    stock = t[0]
+    line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
+    line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
+    figure = go.Figure(data=line1.data + line2.data)
+    figure.update_layout(title=stock)
+    figure.show()
