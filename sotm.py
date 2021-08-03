@@ -25,7 +25,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_df_0.0.0.pkl'
-download = False
+download = True
 
 # Set requested date range
 finish_date = datetime.date.today()
@@ -166,7 +166,10 @@ stock_df = pd.DataFrame(cur.fetchall(),
                         columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
 
-# print('stock_df:', stock_df)
+print('stock_df:', stock_df.loc['A'])
+print('length of stock_df:', len(stock_df.loc['A']))
+
+# Need to drop any extra rows
 
 # Find actual start date
 query = '''
@@ -201,6 +204,7 @@ for stock in t:
     stocks.append(stock[0])
 
 con.close()
+
 
 # Correct start and finish dates so they are trading days
 trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
@@ -287,10 +291,10 @@ print("\r     ")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 for t in output[0:10]:
-    print(t[0], t[1])
     stock = t[0]
+    print(stock, annualized_return[stock], t[1])
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    figure.show()
+    #figure.show()
