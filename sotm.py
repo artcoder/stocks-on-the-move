@@ -40,12 +40,12 @@ print("Requested start:", start_date, "finish:", finish_date)
 # How many calendar days?
 # 90 * 365.25 / 253 = 130 calendar days
 
-extra_days = 5  # extra days to look at in case the start date is not a trading day
+extra_days = 3  # extra days to look at in case the start date is not a trading day
 
 
-def find_download_start_date(requested_start_date):
+def create_database_if_needed():
     global con
-    # print("In find_download_start_date:", requested_start_date, type(requested_start_date))
+
     cur = con.cursor()
 
     # If table does not exist, create it
@@ -62,6 +62,12 @@ def find_download_start_date(requested_start_date):
     )
     '''
     cur.execute(sql)
+
+
+def find_download_start_date(requested_start_date):
+    global con
+    # print("In find_download_start_date:", requested_start_date, type(requested_start_date))
+    cur = con.cursor()
 
     # Find the last date in the database:
     sql = '''
@@ -90,8 +96,6 @@ def download_stock_data(download_start_date, download_finish_date):
 
     if download:
         data = yf.download(stock_list,
-                           # start = download_start_date,
-                           # end = download_finish_date,
                            start=(download_start_date - timedelta(days=extra_days)),
                            end=(download_finish_date + timedelta(days=1)),
                            group_by='ticker')
@@ -105,8 +109,7 @@ def download_stock_data(download_start_date, download_finish_date):
     t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
     t_df = t_df.reset_index()
 
-    # insert dataframe data into database, but it fails if the date and ticker already exists
-    # print(t_df)
+    # This would insert dataframe data into database, but it fails if a date and ticker already exist
     # t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
     print('Inserting data into database...')
@@ -126,8 +129,6 @@ def download_stock_data(download_start_date, download_finish_date):
 
     con.commit()
     print("\r                                                    ")
-
-
 #
 
 
@@ -138,10 +139,13 @@ reader = csv.reader(csvfile)
 for row in reader:
     stock_list.append(row[0])
 
+
 # detect_types is for timestamp support
 con = sqlite3.connect(database_filename,
                       detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 cur = con.cursor()
+
+create_database_if_needed()
 
 # print("in main:", start_date, type(start_date))
 download_start_date = find_download_start_date(start_date)
@@ -158,16 +162,17 @@ sql = '''
 Select * From stock_data
 Where Date >= ? and Date <= ?
 '''
-cur.execute(sql,
-            [start_date - timedelta(days=extra_days), finish_date + timedelta(days=1)])
+cur.execute(sql, [start_date - timedelta(days=extra_days),
+                  finish_date + timedelta(days=1)])
 
 # print('[start_date, finish_date]:', [start_date, finish_date])
 stock_df = pd.DataFrame(cur.fetchall(),
                         columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
 
-print('stock_df:', stock_df.loc['A'])
-print('length of stock_df:', len(stock_df.loc['A']))
+print('stock_df:', stock_df)
+valid_stock_symbol = stock_df.iloc[0].name[0]
+print('Length of a stock in stock_df:', len(stock_df.loc[valid_stock_symbol]))
 
 # Need to drop any extra rows
 
@@ -280,19 +285,19 @@ for stock in stock_list:
 
     r_sq[stock] = model.score(x[stock], y[stock])
 
-    annualized_return[stock] = pow(math.exp(slope[stock]), 250)
+    annualized_return[stock] = pow(math.exp(slope[stock]), 250) - 1.0
 
     adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
 
     # count = count + 1
     # if count > 5:
     #     break
-print("\r     ")
+print("\rAnnualized rate of return, adjusted slope:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 for t in output[0:10]:
     stock = t[0]
-    print(stock, annualized_return[stock], t[1])
+    print(stock, round(annualized_return[stock] * 100), '% ', round(t[1], 2))
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
