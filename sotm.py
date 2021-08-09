@@ -3,7 +3,7 @@
 #
 ###
 # David Guilbeau
-# Version 0.0.0
+# Version 0.0.1
 
 import csv
 import datetime
@@ -25,22 +25,24 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_df_0.0.0.pkl'
-download = True
+download = False
+maximum_trading_days_needed = 100  # for 100 day moving average
 
-# Set requested date range
-finish_date = datetime.date.today()
-# finish_date = datetime.datetime(2021, 7, 6)
-start_date = finish_date - timedelta(days=130)
-print("Requested start:", start_date, "finish:", finish_date)
-
-# start = finish - timedelta(days=289)
+maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
+# start = finish - timedelta(days=130)
 # 253 trading days in a year
 # 365.25 days in a year
 # 90 trading days to look at
 # How many calendar days?
 # 90 * 365.25 / 253 = 130 calendar days
 
-extra_days = 3  # extra days to look at in case the start date is not a trading day
+# Set requested date range
+finish_date = datetime.date.today()
+# finish_date = datetime.datetime(2021, 7, 6)
+start_date = finish_date - timedelta(days=maximum_calendar_days_needed)
+print("Requested start:", start_date, "finish:", finish_date)
+
+extra_days = 5  # extra days to look at in case the start date is not a trading day
 
 
 def create_database_if_needed():
@@ -129,6 +131,8 @@ def download_stock_data(download_start_date, download_finish_date):
 
     con.commit()
     print("\r                                                    ")
+
+
 #
 
 
@@ -138,7 +142,6 @@ reader = csv.reader(csvfile)
 
 for row in reader:
     stock_list.append(row[0])
-
 
 # detect_types is for timestamp support
 con = sqlite3.connect(database_filename,
@@ -155,7 +158,7 @@ download_finish_date = finish_date
 if download_start_date <= download_finish_date:
     download_stock_data(download_start_date, download_finish_date)
 else:
-    print("Not downloading")
+    print("Not downloading.")
 
 # Load requested date range from the database
 sql = '''
@@ -165,12 +168,15 @@ Where Date >= ? and Date <= ?
 cur.execute(sql, [start_date - timedelta(days=extra_days),
                   finish_date + timedelta(days=1)])
 
-# print('[start_date, finish_date]:', [start_date, finish_date])
+print('Database request start date, finish date:',
+      start_date - timedelta(days=extra_days),
+      finish_date + timedelta(days=1) )
+
 stock_df = pd.DataFrame(cur.fetchall(),
                         columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
 
-print('stock_df:', stock_df)
+# print('stock_df:', stock_df)
 valid_stock_symbol = stock_df.iloc[0].name[0]
 print('Length of a stock in stock_df:', len(stock_df.loc[valid_stock_symbol]))
 
@@ -208,8 +214,7 @@ stocks = []
 for stock in t:
     stocks.append(stock[0])
 
-con.close()
-
+# con.close()
 
 # Correct start and finish dates so they are trading days
 trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
@@ -217,8 +222,8 @@ trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
 
 start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
                                 start_date).tolist()
-# print('start_day_range:', start_day_range)
 start_day_range.reverse()
+print('start_day_range:', start_day_range)
 found_start_day = False
 
 for d in start_day_range:
@@ -271,6 +276,24 @@ for stock in stock_list:
     print("\r", stock, end='')
     # print(stock_df.loc[stock])
 
+    # get last 90 trading days of this stock
+    sql = '''
+    Select * From stock_data
+    Where ticker = ?
+    Order By date Desc
+    Limit 90
+    '''
+    cur.execute(sql, [stock])
+    t = cur.fetchall()
+    # print('t:', t)
+
+    # calculate adjusted slope
+
+    # find if the stock moved +-15% in across 2 trading days
+
+    # get last 100 trading days of this stock
+    # calculate the 100 day moving average
+
     # Regression of the natural logarithm of price
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
     x[stock] = stock_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
@@ -292,6 +315,9 @@ for stock in stock_list:
     # count = count + 1
     # if count > 5:
     #     break
+
+con.close()
+
 print("\rAnnualized rate of return, adjusted slope:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
@@ -302,4 +328,4 @@ for t in output[0:10]:
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    #figure.show()
+    # figure.show()
