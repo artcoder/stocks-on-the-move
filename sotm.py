@@ -266,6 +266,9 @@ y = {}
 plotly_x = {}
 predicted_y = {}
 jumped = {}
+hundred_day_average = {}
+last_price = {}
+below_100_day_average = {}
 
 # natural logarithm of price
 # stock_group_df.insert(0, 'ln', 0)
@@ -331,16 +334,47 @@ for stock in stock_list:
             previous_price = price
 
     # get last 100 trading days of this stock
-    # calculate the 100 day moving average
+    sql = '''
+       Select * From stock_data
+       Where ticker = ?
+       Order By date Desc
+       Limit 100
+       '''
+    cur.execute(sql, [stock])
+    stock_100_df = pd.DataFrame(cur.fetchall(),
+                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+    stock_100_df = stock_100_df.set_index(['date']).sort_index()
+
+    # calculate the 100 day "moving" average
+    hundred_day_average[stock] = stock_100_df["close"].mean()
+    last_price[stock] = stock_100_df['close'].iloc[-1]
+    if last_price[stock] < hundred_day_average[stock]:
+        below_100_day_average[stock] = True
+    else:
+        below_100_day_average[stock] = False
+
 
 con.close()
 
-print("\rJumped, Annualized rate of return, adjusted slope:")
+print("\rAnnualized rate of return, adjusted slope, Jumped, Below 100 day SMA,:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
-for t in output[0:10]:
+count = 1
+for t in output[0:50]:
     stock = t[0]
-    print(jumped[stock], stock, round(annualized_return[stock] * 100), '% ', round(t[1], 2))
+
+    if jumped[stock] or below_100_day_average[stock]:
+        ranking_string = 'X'
+    else:
+        ranking_string = str(count)
+        count = count + 1
+
+    print(ranking_string, stock,
+          round(annualized_return[stock] * 100), '% ',
+          round(t[1], 2),
+          jumped[stock],
+          below_100_day_average[stock],
+          )
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
