@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
-pickle_filename = r'.\stock_df_0.0.0.pkl'
+pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = False
 maximum_trading_days_needed = 100  # for 100 day moving average
 
@@ -172,13 +172,13 @@ print('Database request start date, finish date:',
       start_date - timedelta(days=extra_days),
       finish_date + timedelta(days=1) )
 
-stock_df = pd.DataFrame(cur.fetchall(),
-                        columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-stock_df = stock_df.set_index(['ticker', 'date']).sort_index()
+stock_group_df = pd.DataFrame(cur.fetchall(),
+                              columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
 
-# print('stock_df:', stock_df)
-valid_stock_symbol = stock_df.iloc[0].name[0]
-print('Length of a stock in stock_df:', len(stock_df.loc[valid_stock_symbol]))
+# print('stock_group_df:', stock_group_df)
+valid_stock_symbol = stock_group_df.iloc[0].name[0]
+print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
 
 # Need to drop any extra rows
 
@@ -217,7 +217,7 @@ for stock in t:
 # con.close()
 
 # Correct start and finish dates so they are trading days
-trading_days = stock_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
+trading_days = stock_group_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
 # print('Trading days from db:', trading_days)
 
 start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
@@ -267,16 +267,16 @@ plotly_x = {}
 predicted_y = {}
 
 # natural logarithm of price
-stock_df.insert(0, 'ln', 0)
-stock_df['ln'] = np.log(stock_df['close'])
+stock_group_df.insert(0, 'ln', 0)
+stock_group_df['ln'] = np.log(stock_group_df['close'])
 
 print('Calculating indicators')
 count = 0
 for stock in stock_list:
     print("\r", stock, end='')
-    # print(stock_df.loc[stock])
+    # print(stock_group_df.loc[stock])
 
-    # get last 90 trading days of this stock
+    # Get last 90 trading days of this stock
     sql = '''
     Select * From stock_data
     Where ticker = ?
@@ -284,8 +284,10 @@ for stock in stock_list:
     Limit 90
     '''
     cur.execute(sql, [stock])
-    t = cur.fetchall()
+    # t = cur.fetchall()
     # print('t:', t)
+    stock_df = pd.DataFrame(cur.fetchall(),
+                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 
     # calculate adjusted slope
 
@@ -296,9 +298,9 @@ for stock in stock_list:
 
     # Regression of the natural logarithm of price
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    x[stock] = stock_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
-    plotly_x[stock] = stock_df.loc[stock].index.values.astype("datetime64[D]")
-    y[stock] = stock_df.loc[stock].get('ln').values
+    x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+    plotly_x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]")
+    y[stock] = stock_group_df.loc[stock].get('ln').values
 
     model = LinearRegression().fit(x[stock], y[stock])
 
@@ -328,4 +330,4 @@ for t in output[0:10]:
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    # figure.show()
+    figure.show()
