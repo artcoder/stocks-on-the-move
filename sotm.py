@@ -3,7 +3,7 @@
 #
 ###
 # David Guilbeau
-# Version 0.0.1
+# Version 0.0.2
 
 import csv
 import datetime
@@ -170,7 +170,7 @@ cur.execute(sql, [start_date - timedelta(days=extra_days),
 
 print('Database request start date, finish date:',
       start_date - timedelta(days=extra_days),
-      finish_date + timedelta(days=1) )
+      finish_date + timedelta(days=1))
 
 stock_group_df = pd.DataFrame(cur.fetchall(),
                               columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
@@ -223,7 +223,7 @@ trading_days = stock_group_df.loc[stocks[0]].index  # "Date" is part of the Mult
 start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
                                 start_date).tolist()
 start_day_range.reverse()
-print('start_day_range:', start_day_range)
+# print('start_day_range:', start_day_range)
 found_start_day = False
 
 for d in start_day_range:
@@ -265,10 +265,11 @@ x = {}
 y = {}
 plotly_x = {}
 predicted_y = {}
+jumped = {}
 
 # natural logarithm of price
-stock_group_df.insert(0, 'ln', 0)
-stock_group_df['ln'] = np.log(stock_group_df['close'])
+# stock_group_df.insert(0, 'ln', 0)
+# stock_group_df['ln'] = np.log(stock_group_df['close'])
 
 print('Calculating indicators')
 count = 0
@@ -288,46 +289,60 @@ for stock in stock_list:
     # print('t:', t)
     stock_df = pd.DataFrame(cur.fetchall(),
                             columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+    stock_df = stock_df.set_index(['date']).sort_index()
 
-    # calculate adjusted slope
-
-    # find if the stock moved +-15% in across 2 trading days
-
-    # get last 100 trading days of this stock
-    # calculate the 100 day moving average
-
+    # Calculate adjusted slope
     # Regression of the natural logarithm of price
+    stock_df.insert(0, 'ln', 0)
+    stock_df['ln'] = np.log(stock_df['close'])
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
-    plotly_x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]")
-    y[stock] = stock_group_df.loc[stock].get('ln').values
+    # x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+    x[stock] = stock_df.index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+    # plotly_x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]")
+    plotly_x[stock] = stock_df.index.values.astype("datetime64[D]")
+    # y[stock] = stock_group_df.loc[stock].get('ln').values
+    y[stock] = stock_df.get('ln').values
 
     model = LinearRegression().fit(x[stock], y[stock])
-
     predicted_y[stock] = model.predict(x[stock])
-
     slope[stock] = model.coef_[0]
-
     r_sq[stock] = model.score(x[stock], y[stock])
-
     annualized_return[stock] = pow(math.exp(slope[stock]), 250) - 1.0
-
     adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
 
     # count = count + 1
     # if count > 5:
     #     break
 
+    # Find if the stock moved +-15% in across 2 trading days
+    jumped[stock] = False
+    first_time = True
+    for price in stock_df.get('close').values:
+        if first_time:
+            previous_price = price
+            first_time = False
+            continue
+        else:
+            difference = previous_price - price
+            percent = (difference / previous_price) * 100
+            if abs(percent) >= 15:
+                jumped[stock] = True
+
+            previous_price = price
+
+    # get last 100 trading days of this stock
+    # calculate the 100 day moving average
+
 con.close()
 
-print("\rAnnualized rate of return, adjusted slope:")
+print("\rJumped, Annualized rate of return, adjusted slope:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 for t in output[0:10]:
     stock = t[0]
-    print(stock, round(annualized_return[stock] * 100), '% ', round(t[1], 2))
+    print(jumped[stock], stock, round(annualized_return[stock] * 100), '% ', round(t[1], 2))
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    figure.show()
+    # figure.show()
