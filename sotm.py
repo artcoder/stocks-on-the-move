@@ -270,15 +270,10 @@ hundred_day_average = {}
 last_price = {}
 below_100_day_average = {}
 
-# natural logarithm of price
-# stock_group_df.insert(0, 'ln', 0)
-# stock_group_df['ln'] = np.log(stock_group_df['close'])
-
 print('Calculating indicators')
 count = 0
 for stock in stock_list:
     print("\r", stock, end='')
-    # print(stock_group_df.loc[stock])
 
     # Get last 90 trading days of this stock
     sql = '''
@@ -299,11 +294,8 @@ for stock in stock_list:
     stock_df.insert(0, 'ln', 0)
     stock_df['ln'] = np.log(stock_df['close'])
     # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    # x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
     x[stock] = stock_df.index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
-    # plotly_x[stock] = stock_group_df.loc[stock].index.values.astype("datetime64[D]")
     plotly_x[stock] = stock_df.index.values.astype("datetime64[D]")
-    # y[stock] = stock_group_df.loc[stock].get('ln').values
     y[stock] = stock_df.get('ln').values
 
     model = LinearRegression().fit(x[stock], y[stock])
@@ -320,6 +312,7 @@ for stock in stock_list:
     # Find if the stock moved +-15% in across 2 trading days
     jumped[stock] = False
     first_time = True
+    previous_price = 0
     for price in stock_df.get('close').values:
         if first_time:
             previous_price = price
@@ -332,6 +325,7 @@ for stock in stock_list:
                 jumped[stock] = True
 
             previous_price = price
+
 
     # get last 100 trading days of this stock
     sql = '''
@@ -356,24 +350,29 @@ for stock in stock_list:
 
 con.close()
 
-print("\rAnnualized rate of return, adjusted slope, Jumped, Below 100 day SMA,:")
+print("\rAnnualized rate of return, adjusted slope:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 count = 1
+explanation_string = ''
 for t in output[0:50]:
     stock = t[0]
 
-    if jumped[stock] or below_100_day_average[stock]:
+    if jumped[stock]:
         ranking_string = 'X'
+        explanation_string = 'Jumped >15% '
+    elif below_100_day_average[stock]:
+        ranking_string = 'X'
+        explanation_string = explanation_string + 'Below 100 day average'
     else:
         ranking_string = str(count)
+        explanation_string = ''
         count = count + 1
 
     print(ranking_string, stock,
-          round(annualized_return[stock] * 100), '% ',
+          str(round(annualized_return[stock] * 100)) + '% ',
           round(t[1], 2),
-          jumped[stock],
-          below_100_day_average[stock],
+          explanation_string,
           )
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
