@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = False
+download = True
 maximum_trading_days_needed = 100  # for 100 day moving average
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -256,7 +256,7 @@ print("Corrected start:", start_date, " finish: ", finish_date)
 
 ####
 # Calculate indicators
-
+account_value = 100
 slope = {}
 r_sq = {}  # R squared
 annualized_return = {}
@@ -271,6 +271,7 @@ hundred_day_average = {}
 last_price = {}
 below_100_day_average = {}
 atr_20 = {}
+shares_to_own = {}
 
 print('Calculating indicators')
 count = 0
@@ -365,15 +366,17 @@ for stock in stock_list:
     atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
     atr_20[stock] = atr[-1]
 
+    shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
+
 
 con.close()
 
-print("\rAnnualized rate of return, adjusted slope, ATR(20):")
+print("\rAnnualized rate of return, adjusted slope, shares:")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 count = 1
 explanation_string = ''
-for t in output[0:50]:
+for t in output[0:15]:
     stock = t[0]
 
     if jumped[stock]:
@@ -390,11 +393,11 @@ for t in output[0:50]:
     print(ranking_string, stock,
           str(round(annualized_return[stock] * 100)) + '% ',
           round(t[1], 2),
-          round(atr_20[stock], 2),
+          round(shares_to_own[stock], 2),
           explanation_string,
           )
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    # figure.show()
+    figure.show()
