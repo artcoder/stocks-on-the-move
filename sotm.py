@@ -17,6 +17,7 @@ import math
 import pickle
 import numpy as np
 from sklearn.linear_model import LinearRegression
+# import talib
 import pandas_ta as ta
 # import traceback
 import plotly.express as px
@@ -269,6 +270,7 @@ jumped = {}
 hundred_day_average = {}
 last_price = {}
 below_100_day_average = {}
+atr_20 = {}
 
 print('Calculating indicators')
 count = 0
@@ -348,9 +350,25 @@ for stock in stock_list:
         below_100_day_average[stock] = False
 
 
+    # get last 21 trading days of this stock
+    sql = '''
+       Select * From stock_data
+       Where ticker = ?
+       Order By date Desc
+       Limit 21
+       '''
+    cur.execute(sql, [stock])
+    stock_df = pd.DataFrame(cur.fetchall(),
+                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+    stock_df = stock_df.set_index(['date']).sort_index()
+
+    atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
+    atr_20[stock] = atr[-1]
+
+
 con.close()
 
-print("\rAnnualized rate of return, adjusted slope:")
+print("\rAnnualized rate of return, adjusted slope, ATR(20):")
 
 output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
 count = 1
@@ -372,6 +390,7 @@ for t in output[0:50]:
     print(ranking_string, stock,
           str(round(annualized_return[stock] * 100)) + '% ',
           round(t[1], 2),
+          round(atr_20[stock], 2),
           explanation_string,
           )
     line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
