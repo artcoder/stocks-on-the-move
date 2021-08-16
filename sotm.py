@@ -1,6 +1,8 @@
 # Python code to automate a stock trading strategy
 # Based on an idea from _Stocks on the Move_ by Andreas F. Clenow
 #
+# Looks for stocks that have nearly a constant rate of growth
+#
 ###
 # David Guilbeau
 # Version 0.0.2
@@ -26,7 +28,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = True
+download = False
 maximum_trading_days_needed = 100  # for 100 day moving average
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -132,8 +134,6 @@ def download_stock_data(download_start_date, download_finish_date):
 
     con.commit()
     print("\r                                                    ")
-
-
 #
 
 
@@ -267,6 +267,7 @@ y = {}
 plotly_x = {}
 predicted_y = {}
 jumped = {}
+above_predicted = {}
 hundred_day_average = {}
 last_price = {}
 below_100_day_average = {}
@@ -307,6 +308,13 @@ for stock in stock_list:
     r_sq[stock] = model.score(x[stock], y[stock])
     annualized_return[stock] = pow(math.exp(slope[stock]), 250) - 1.0
     adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
+
+    if y[stock][-1] < predicted_y[stock][-1]:
+        # print('< predicted price')
+        above_predicted[stock] = False
+    else:
+        # print('> predicted price')
+        above_predicted[stock] = True
 
     # count = count + 1
     # if count > 5:
@@ -371,13 +379,15 @@ for stock in stock_list:
 
 con.close()
 
-print("\rAnnualized rate of return, adjusted slope, shares:")
+print("\rAnnualized rate of return, r squared, shares:")
 
-output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
+# output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
+output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
+
 count = 1
-explanation_string = ''
-for t in output[0:15]:
+for t in output[0:25]:
     stock = t[0]
+    explanation_string = ''
 
     if jumped[stock]:
         ranking_string = 'X'
@@ -385,6 +395,9 @@ for t in output[0:15]:
     elif below_100_day_average[stock]:
         ranking_string = 'X'
         explanation_string = explanation_string + 'Below 100 day average'
+    elif above_predicted[stock]:
+        ranking_string = 'X'
+        explanation_string = explanation_string + 'Above predicted price'
     else:
         ranking_string = str(count)
         explanation_string = ''
@@ -400,4 +413,5 @@ for t in output[0:15]:
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    figure.show()
+    if len(explanation_string) == 0:
+        figure.show()
