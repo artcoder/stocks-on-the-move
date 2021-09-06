@@ -1,7 +1,7 @@
 # Python code to automate a stock trading strategy
 # Based on an idea from _Stocks on the Move_ by Andreas F. Clenow
 #
-# Looks for stocks that have nearly a constant rate of growth
+# Looks for stocks that have a nearly constant rate of growth.
 #
 ###
 # David Guilbeau
@@ -28,7 +28,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = False
+download = True
 maximum_trading_days_needed = 100  # for 100 day moving average
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -256,7 +256,7 @@ print("Corrected start:", start_date, " finish: ", finish_date)
 
 ####
 # Calculate indicators
-account_value = 100
+account_value = 200
 slope = {}
 r_sq = {}  # R squared
 annualized_return = {}
@@ -271,6 +271,7 @@ above_predicted = {}
 hundred_day_average = {}
 last_price = {}
 below_100_day_average = {}
+below_25_percent_growth = {}
 atr_20 = {}
 shares_to_own = {}
 
@@ -338,25 +339,31 @@ for stock in stock_list:
             previous_price = price
 
 
+    # Is the annualized growth rate below 25%?
+    below_25_percent_growth[stock] = False
+    if annualized_return[stock] * 100 < 25:
+        below_25_percent_growth[stock] = True
+
+
     # get last 100 trading days of this stock
-    sql = '''
-       Select * From stock_data
-       Where ticker = ?
-       Order By date Desc
-       Limit 100
-       '''
-    cur.execute(sql, [stock])
-    stock_100_df = pd.DataFrame(cur.fetchall(),
-                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-    stock_100_df = stock_100_df.set_index(['date']).sort_index()
+    # sql = '''
+    #   Select * From stock_data
+    #   Where ticker = ?
+    #   Order By date Desc
+    #   Limit 100
+    #   '''
+    # cur.execute(sql, [stock])
+    # stock_100_df = pd.DataFrame(cur.fetchall(),
+    #                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+    # stock_100_df = stock_100_df.set_index(['date']).sort_index()
 
     # calculate the 100 day "moving" average
-    hundred_day_average[stock] = stock_100_df["close"].mean()
-    last_price[stock] = stock_100_df['close'].iloc[-1]
-    if last_price[stock] < hundred_day_average[stock]:
-        below_100_day_average[stock] = True
-    else:
-        below_100_day_average[stock] = False
+    # hundred_day_average[stock] = stock_100_df["close"].mean()
+    # last_price[stock] = stock_100_df['close'].iloc[-1]
+    # if last_price[stock] < hundred_day_average[stock]:
+    #    below_100_day_average[stock] = True
+    # else:
+    #    below_100_day_average[stock] = False
 
 
     # get last 21 trading days of this stock
@@ -392,9 +399,12 @@ for t in output[0:25]:
     if jumped[stock]:
         ranking_string = 'X'
         explanation_string = 'Jumped >15% '
-    elif below_100_day_average[stock]:
+    elif below_25_percent_growth[stock]:
         ranking_string = 'X'
-        explanation_string = explanation_string + 'Below 100 day average'
+        explanation_string = explanation_string + 'Below 25% annual growth rate'
+    # elif below_100_day_average[stock]:
+    #    ranking_string = 'X'
+    #    explanation_string = explanation_string + 'Below 100 day average'
     elif above_predicted[stock]:
         ranking_string = 'X'
         explanation_string = explanation_string + 'Above predicted price'
@@ -413,5 +423,9 @@ for t in output[0:25]:
     line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
-    if len(explanation_string) == 0:
-        figure.show()
+
+    figure.show()
+
+    #if len(explanation_string) == 0:
+    #    figure.show()
+    #    continue
