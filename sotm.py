@@ -424,7 +424,7 @@ for t in output[0:25]:
     figure = go.Figure(data=line1.data + line2.data)
     figure.update_layout(title=stock)
 
-    figure.show()
+    # figure.show()
 
     #if len(explanation_string) == 0:
     #    figure.show()
