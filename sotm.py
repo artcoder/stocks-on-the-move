@@ -138,294 +138,310 @@ def download_stock_data(download_start_date, download_finish_date):
 
 
 stock_list = []
-csvfile = open(symbols_filename, newline='')
-reader = csv.reader(csvfile)
-
-for row in reader:
-    stock_list.append(row[0])
 
 # detect_types is for timestamp support
 con = sqlite3.connect(database_filename,
-                      detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-cur = con.cursor()
+                          detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
-create_database_if_needed()
+def main():
+    global stock_list
+    global con
+    global start_date
+    global finish_date
 
-# print("in main:", start_date, type(start_date))
-download_start_date = find_download_start_date(start_date)
+    csvfile = open(symbols_filename, newline='')
+    reader = csv.reader(csvfile)
 
-download_finish_date = finish_date
+    for row in reader:
+        stock_list.append(row[0])
 
-if download_start_date <= download_finish_date:
-    download_stock_data(download_start_date, download_finish_date)
-else:
-    print("Not downloading.")
+    cur = con.cursor()
 
-# Load requested date range from the database
-sql = '''
-Select * From stock_data
-Where Date >= ? and Date <= ?
-'''
-cur.execute(sql, [start_date - timedelta(days=extra_days),
-                  finish_date + timedelta(days=1)])
+    create_database_if_needed()
 
-print('Database request start date, finish date:',
-      start_date - timedelta(days=extra_days),
-      finish_date + timedelta(days=1))
+    # print("in main:", start_date, type(start_date))
+    download_start_date = find_download_start_date(start_date)
 
-stock_group_df = pd.DataFrame(cur.fetchall(),
-                              columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
+    download_finish_date = finish_date
 
-# print('stock_group_df:', stock_group_df)
-valid_stock_symbol = stock_group_df.iloc[0].name[0]
-print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
+    if download_start_date <= download_finish_date:
+        download_stock_data(download_start_date, download_finish_date)
+    else:
+        print("Not downloading.")
 
-# Need to drop any extra rows
-
-# Find actual start date
-query = '''
-select date from stock_data
-order by date
-limit 1
-'''
-cur.execute(query)
-t = cur.fetchone()
-print("Database start date:", t[0])
-
-# Find actual finish date
-query = '''
-Select date From stock_data
-Order By date Desc
-limit 1
-'''
-cur.execute(query)
-t = cur.fetchone()
-print("Database finish date:", t[0])
-
-# Make a list of the stocks in the database
-query = '''
-SELECT DISTINCT ticker
-FROM stock_data
-'''
-cur.execute(query)
-t = cur.fetchall()
-
-stocks = []
-for stock in t:
-    stocks.append(stock[0])
-
-# con.close()
-
-# Correct start and finish dates so they are trading days
-trading_days = stock_group_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
-# print('Trading days from db:', trading_days)
-
-start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
-                                start_date).tolist()
-start_day_range.reverse()
-# print('start_day_range:', start_day_range)
-found_start_day = False
-
-for d in start_day_range:
-    if d in trading_days:
-        start_date = d
-        found_start_day = True
-        break
-
-if found_start_day == False:
-    print('Could not find a trading day for the start day.')
-    sys.exit(1)
-
-finish_day_range = pd.date_range(finish_date - timedelta(days=extra_days),
-                                 finish_date).tolist()
-finish_day_range.reverse()
-found_finish_day = False
-
-for d in finish_day_range:
-    if d in trading_days:
-        finish_date = d
-        found_finish_day = True
-        break
-
-if found_finish_day == False:
-    print('Could not find a trading day for the finish day.')
-    sys.exit(1)
-
-print("Corrected start:", start_date, " finish: ", finish_date)
-
-####
-# Calculate indicators
-account_value = 200
-slope = {}
-r_sq = {}  # R squared
-annualized_return = {}
-adjusted_slope = {}
-
-x = {}
-y = {}
-plotly_x = {}
-predicted_y = {}
-jumped = {}
-above_predicted = {}
-hundred_day_average = {}
-last_price = {}
-below_100_day_average = {}
-below_25_percent_growth = {}
-atr_20 = {}
-shares_to_own = {}
-
-print('Calculating indicators')
-count = 0
-for stock in stock_list:
-    print("\r", stock, end='')
-
-    # Get last 90 trading days of this stock
+    # Load requested date range from the database
     sql = '''
     Select * From stock_data
-    Where ticker = ?
-    Order By date Desc
-    Limit 90
+    Where Date >= ? and Date <= ?
     '''
-    cur.execute(sql, [stock])
-    # t = cur.fetchall()
-    # print('t:', t)
-    stock_df = pd.DataFrame(cur.fetchall(),
-                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-    stock_df = stock_df.set_index(['date']).sort_index()
+    cur.execute(sql, [start_date - timedelta(days=extra_days),
+                      finish_date + timedelta(days=1)])
 
-    # Calculate adjusted slope
-    # Regression of the natural logarithm of price
-    stock_df.insert(0, 'ln', 0)
-    stock_df['ln'] = np.log(stock_df['close'])
-    # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
-    x[stock] = stock_df.index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
-    plotly_x[stock] = stock_df.index.values.astype("datetime64[D]")
-    y[stock] = stock_df.get('ln').values
+    print('Database request start date, finish date:',
+          start_date - timedelta(days=extra_days),
+          finish_date + timedelta(days=1))
 
-    model = LinearRegression().fit(x[stock], y[stock])
-    predicted_y[stock] = model.predict(x[stock])
-    slope[stock] = model.coef_[0]
-    r_sq[stock] = model.score(x[stock], y[stock])
-    annualized_return[stock] = pow(math.exp(slope[stock]), 250) - 1.0
-    adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
+    stock_group_df = pd.DataFrame(cur.fetchall(),
+                                  columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+    stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
 
-    if y[stock][-1] < predicted_y[stock][-1]:
-        # print('< predicted price')
-        above_predicted[stock] = False
-    else:
-        # print('> predicted price')
-        above_predicted[stock] = True
+    # print('stock_group_df:', stock_group_df)
+    valid_stock_symbol = stock_group_df.iloc[0].name[0]
+    print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
 
-    # count = count + 1
-    # if count > 5:
-    #     break
+    # Need to drop any extra rows
 
-    # Find if the stock moved +-15% in across 2 trading days
-    jumped[stock] = False
-    first_time = True
-    previous_price = 0
-    for price in stock_df.get('close').values:
-        if first_time:
-            previous_price = price
-            first_time = False
-            continue
+    # Find actual start date
+    query = '''
+    select date from stock_data
+    order by date
+    limit 1
+    '''
+    cur.execute(query)
+    t = cur.fetchone()
+    print("Database start date:", t[0])
+
+    # Find actual finish date
+    query = '''
+    Select date From stock_data
+    Order By date Desc
+    limit 1
+    '''
+    cur.execute(query)
+    t = cur.fetchone()
+    print("Database finish date:", t[0])
+
+    # Make a list of the stocks in the database
+    query = '''
+    SELECT DISTINCT ticker
+    FROM stock_data
+    '''
+    cur.execute(query)
+    t = cur.fetchall()
+
+    stocks = []
+    for stock in t:
+        stocks.append(stock[0])
+
+    # con.close()
+
+    # Correct start and finish dates so they are trading days
+    trading_days = stock_group_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
+    # print('Trading days from db:', trading_days)
+
+    start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
+                                    start_date).tolist()
+    start_day_range.reverse()
+    # print('start_day_range:', start_day_range)
+    found_start_day = False
+
+    for d in start_day_range:
+        if d in trading_days:
+            start_date = d
+            found_start_day = True
+            break
+
+    if found_start_day == False:
+        print('Could not find a trading day for the start day.')
+        sys.exit(1)
+
+    finish_day_range = pd.date_range(finish_date - timedelta(days=extra_days),
+                                     finish_date).tolist()
+    finish_day_range.reverse()
+    found_finish_day = False
+
+    for d in finish_day_range:
+        if d in trading_days:
+            finish_date = d
+            found_finish_day = True
+            break
+
+    if found_finish_day == False:
+        print('Could not find a trading day for the finish day.')
+        sys.exit(1)
+
+    print("Corrected start:", start_date, " finish: ", finish_date)
+
+
+    # def find_list(window_df)
+    ####
+    # Calculate indicators
+    account_value = 200
+    slope = {}
+    r_sq = {}  # R squared
+    annualized_return = {}
+    adjusted_slope = {}
+
+    x = {}
+    y = {}
+    plotly_x = {}
+    predicted_y = {}
+    jumped = {}
+    above_predicted = {}
+    hundred_day_average = {}
+    last_price = {}
+    below_100_day_average = {}
+    below_25_percent_growth = {}
+    atr_20 = {}
+    shares_to_own = {}
+
+    print('Calculating indicators')
+    count = 0
+    for stock in stock_list:
+        print("\r", stock, end='')
+
+        # Get last 90 trading days of this stock
+        # stock_group_df
+
+        sql = '''
+        Select * From stock_data
+        Where ticker = ?
+        Order By date Desc
+        Limit 90
+        '''
+        cur.execute(sql, [stock])
+        # t = cur.fetchall()
+        # print('t:', t)
+        stock_df = pd.DataFrame(cur.fetchall(),
+                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+        stock_df = stock_df.set_index(['date']).sort_index()
+
+        # Calculate adjusted slope
+        # Regression of the natural logarithm of price
+        stock_df.insert(0, 'ln', 0)
+        stock_df['ln'] = np.log(stock_df['close'])
+        # Pandas.datetime to numpy.datetime64 to numpy.datetime64 days to a floating point number
+        x[stock] = stock_df.index.values.astype("datetime64[D]").astype("float").reshape(-1, 1)
+        plotly_x[stock] = stock_df.index.values.astype("datetime64[D]")
+        y[stock] = stock_df.get('ln').values
+
+        model = LinearRegression().fit(x[stock], y[stock])
+        predicted_y[stock] = model.predict(x[stock])
+        slope[stock] = model.coef_[0]
+        r_sq[stock] = model.score(x[stock], y[stock])
+        annualized_return[stock] = pow(math.exp(slope[stock]), 250) - 1.0
+        adjusted_slope[stock] = r_sq[stock] * annualized_return[stock]
+
+        if y[stock][-1] < predicted_y[stock][-1]:
+            # print('< predicted price')
+            above_predicted[stock] = False
         else:
-            difference = previous_price - price
-            percent = (difference / previous_price) * 100
-            if abs(percent) >= 15:
-                jumped[stock] = True
+            # print('> predicted price')
+            above_predicted[stock] = True
 
-            previous_price = price
+        # count = count + 1
+        # if count > 5:
+        #     break
 
+        # Find if the stock moved +-15% in across 2 trading days
+        jumped[stock] = False
+        first_time = True
+        previous_price = 0
+        for price in stock_df.get('close').values:
+            if first_time:
+                previous_price = price
+                first_time = False
+                continue
+            else:
+                difference = previous_price - price
+                percent = (difference / previous_price) * 100
+                if abs(percent) >= 15:
+                    jumped[stock] = True
 
-    # Is the annualized growth rate below 25%?
-    below_25_percent_growth[stock] = False
-    if annualized_return[stock] * 100 < 25:
-        below_25_percent_growth[stock] = True
-
-
-    # get last 100 trading days of this stock
-    # sql = '''
-    #   Select * From stock_data
-    #   Where ticker = ?
-    #   Order By date Desc
-    #   Limit 100
-    #   '''
-    # cur.execute(sql, [stock])
-    # stock_100_df = pd.DataFrame(cur.fetchall(),
-    #                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-    # stock_100_df = stock_100_df.set_index(['date']).sort_index()
-
-    # calculate the 100 day "moving" average
-    # hundred_day_average[stock] = stock_100_df["close"].mean()
-    # last_price[stock] = stock_100_df['close'].iloc[-1]
-    # if last_price[stock] < hundred_day_average[stock]:
-    #    below_100_day_average[stock] = True
-    # else:
-    #    below_100_day_average[stock] = False
+                previous_price = price
 
 
-    # get last 21 trading days of this stock
-    sql = '''
-       Select * From stock_data
-       Where ticker = ?
-       Order By date Desc
-       Limit 21
-       '''
-    cur.execute(sql, [stock])
-    stock_df = pd.DataFrame(cur.fetchall(),
-                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-    stock_df = stock_df.set_index(['date']).sort_index()
-
-    atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
-    atr_20[stock] = atr[-1]
-
-    shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
+        # Is the annualized growth rate below 25%?
+        below_25_percent_growth[stock] = False
+        if annualized_return[stock] * 100 < 25:
+            below_25_percent_growth[stock] = True
 
 
-con.close()
+        # get last 100 trading days of this stock
+        # sql = '''
+        #   Select * From stock_data
+        #   Where ticker = ?
+        #   Order By date Desc
+        #   Limit 100
+        #   '''
+        # cur.execute(sql, [stock])
+        # stock_100_df = pd.DataFrame(cur.fetchall(),
+        #                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+        # stock_100_df = stock_100_df.set_index(['date']).sort_index()
 
-print("\rAnnualized rate of return, r squared, shares:")
+        # calculate the 100 day "moving" average
+        # hundred_day_average[stock] = stock_100_df["close"].mean()
+        # last_price[stock] = stock_100_df['close'].iloc[-1]
+        # if last_price[stock] < hundred_day_average[stock]:
+        #    below_100_day_average[stock] = True
+        # else:
+        #    below_100_day_average[stock] = False
 
-# output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
-output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
 
-count = 1
-for t in output[0:25]:
-    stock = t[0]
-    explanation_string = ''
+        # get last 21 trading days of this stock
+        sql = '''
+           Select * From stock_data
+           Where ticker = ?
+           Order By date Desc
+           Limit 21
+           '''
+        cur.execute(sql, [stock])
+        stock_df = pd.DataFrame(cur.fetchall(),
+                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+        stock_df = stock_df.set_index(['date']).sort_index()
 
-    if jumped[stock]:
-        ranking_string = 'X'
-        explanation_string = 'Jumped >15% '
-    elif below_25_percent_growth[stock]:
-        ranking_string = 'X'
-        explanation_string = explanation_string + 'Below 25% annual growth rate'
-    # elif below_100_day_average[stock]:
-    #    ranking_string = 'X'
-    #    explanation_string = explanation_string + 'Below 100 day average'
-    elif above_predicted[stock]:
-        ranking_string = 'X'
-        explanation_string = explanation_string + 'Above predicted price'
-    else:
-        ranking_string = str(count)
+        atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
+        atr_20[stock] = atr[-1]
+
+        shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
+
+
+    con.close()
+
+    print("\rAnnualized rate of return, r squared, shares:")
+
+    # output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
+    output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
+
+    count = 1
+    for t in output[0:25]:
+        stock = t[0]
         explanation_string = ''
-        count = count + 1
 
-    print(ranking_string, stock,
-          str(round(annualized_return[stock] * 100)) + '% ',
-          round(t[1], 2),
-          round(shares_to_own[stock], 2),
-          explanation_string,
-          )
-    line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
-    line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
-    figure = go.Figure(data=line1.data + line2.data)
-    figure.update_layout(title=stock)
+        if jumped[stock]:
+            ranking_string = 'X'
+            explanation_string = 'Jumped >15% '
+        elif below_25_percent_growth[stock]:
+            ranking_string = 'X'
+            explanation_string = explanation_string + 'Below 25% annual growth rate'
+        # elif below_100_day_average[stock]:
+        #    ranking_string = 'X'
+        #    explanation_string = explanation_string + 'Below 100 day average'
+        elif above_predicted[stock]:
+            ranking_string = 'X'
+            explanation_string = explanation_string + 'Above predicted price'
+        else:
+            ranking_string = str(count)
+            explanation_string = ''
+            count = count + 1
 
-    # figure.show()
+        print(ranking_string, stock,
+              str(round(annualized_return[stock] * 100)) + '% ',
+              round(t[1], 2),
+              round(shares_to_own[stock], 2),
+              explanation_string,
+              )
+        line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
+        line2 = px.line(x=plotly_x[stock], y=predicted_y[stock], title=stock)
+        figure = go.Figure(data=line1.data + line2.data)
+        figure.update_layout(title=stock)
 
-    #if len(explanation_string) == 0:
-    #    figure.show()
-    #    continue
+        # figure.show()
+
+        #if len(explanation_string) == 0:
+        #    figure.show()
+        #    continue
+
+
+if __name__ == '__main__':
+    main()
