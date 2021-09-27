@@ -28,7 +28,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = True
+download = False
 maximum_trading_days_needed = 100  # for 100 day moving average
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -114,6 +114,8 @@ def download_stock_data(download_start_date, download_finish_date):
     t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
     t_df = t_df.reset_index()
 
+    cur = con.cursor()
+
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
     # t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
@@ -183,85 +185,29 @@ def main():
 
     stock_group_df = pd.DataFrame(cur.fetchall(),
                                   columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+
+    # store the list of stocks
+    stocks = stock_group_df["ticker"].unique().tolist()
+
     stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
 
     # print('stock_group_df:', stock_group_df)
-    valid_stock_symbol = stock_group_df.iloc[0].name[0]
+    valid_stock_symbol = stocks[0]
+    # Skipping for now
     print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
 
     # Need to drop any extra rows
 
     # Find actual start date
-    query = '''
-    select date from stock_data
-    order by date
-    limit 1
-    '''
-    cur.execute(query)
-    t = cur.fetchone()
-    print("Database start date:", t[0])
+    # The second index "name" is the date
+    database_start_date = stock_group_df.iloc[0].name[1]
+    print("Database start date:", database_start_date)
 
     # Find actual finish date
-    query = '''
-    Select date From stock_data
-    Order By date Desc
-    limit 1
-    '''
-    cur.execute(query)
-    t = cur.fetchone()
-    print("Database finish date:", t[0])
-
-    # Make a list of the stocks in the database
-    query = '''
-    SELECT DISTINCT ticker
-    FROM stock_data
-    '''
-    cur.execute(query)
-    t = cur.fetchall()
-
-    stocks = []
-    for stock in t:
-        stocks.append(stock[0])
+    database_finish_date = stock_group_df.iloc[-1].name[1]
+    print("Database finish date:", database_finish_date)
 
     # con.close()
-
-    # Correct start and finish dates so they are trading days
-    trading_days = stock_group_df.loc[stocks[0]].index  # "Date" is part of the MultiIndex
-    # print('Trading days from db:', trading_days)
-
-    start_day_range = pd.date_range(start_date - timedelta(days=extra_days),
-                                    start_date).tolist()
-    start_day_range.reverse()
-    # print('start_day_range:', start_day_range)
-    found_start_day = False
-
-    for d in start_day_range:
-        if d in trading_days:
-            start_date = d
-            found_start_day = True
-            break
-
-    if found_start_day == False:
-        print('Could not find a trading day for the start day.')
-        sys.exit(1)
-
-    finish_day_range = pd.date_range(finish_date - timedelta(days=extra_days),
-                                     finish_date).tolist()
-    finish_day_range.reverse()
-    found_finish_day = False
-
-    for d in finish_day_range:
-        if d in trading_days:
-            finish_date = d
-            found_finish_day = True
-            break
-
-    if found_finish_day == False:
-        print('Could not find a trading day for the finish day.')
-        sys.exit(1)
-
-    print("Corrected start:", start_date, " finish: ", finish_date)
-
 
     # def find_list(window_df)
     ####
