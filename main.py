@@ -139,77 +139,8 @@ def download_stock_data(download_start_date, download_finish_date):
 #
 
 
-stock_list = []
+def find_list(stock_group_df):
 
-# detect_types is for timestamp support
-con = sqlite3.connect(database_filename,
-                          detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-
-def main():
-    global stock_list
-    global con
-    global start_date
-    global finish_date
-
-    csvfile = open(symbols_filename, newline='')
-    reader = csv.reader(csvfile)
-
-    for row in reader:
-        stock_list.append(row[0])
-
-    cur = con.cursor()
-
-    create_database_if_needed()
-
-    # print("in main:", start_date, type(start_date))
-    download_start_date = find_download_start_date(start_date)
-
-    download_finish_date = finish_date
-
-    if download_start_date <= download_finish_date:
-        download_stock_data(download_start_date, download_finish_date)
-    else:
-        print("Not downloading.")
-
-    # Load requested date range from the database
-    sql = '''
-    Select * From stock_data
-    Where Date >= ? and Date <= ?
-    '''
-    cur.execute(sql, [start_date - timedelta(days=extra_days),
-                      finish_date + timedelta(days=1)])
-
-    print('Database request start date, finish date:',
-          start_date - timedelta(days=extra_days),
-          finish_date + timedelta(days=1))
-
-    stock_group_df = pd.DataFrame(cur.fetchall(),
-                                  columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-
-    con.close()
-
-    # store the list of stocks
-    stocks = stock_group_df["ticker"].unique().tolist()
-
-    stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
-
-    # print('stock_group_df:', stock_group_df)
-    valid_stock_symbol = stocks[0]
-    # Skipping for now
-    print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
-
-    # Need to drop any extra rows
-
-    # Find actual start date
-    # The second index "name" is the date
-    database_start_date = stock_group_df.iloc[0].name[1]
-
-    # Find actual finish date
-    database_finish_date = stock_group_df.iloc[-1].name[1]
-    print("Dataframe range:", database_start_date, database_finish_date)
-
-    # def find_list(window_df)
-    ####
     # Calculate indicators
     account_value = 200
     slope = {}
@@ -343,6 +274,80 @@ def main():
         #if len(explanation_string) == 0:
         #    figure.show()
         #    continue
+#
+
+
+stock_list = []
+
+# detect_types is for timestamp support
+con = sqlite3.connect(database_filename,
+                          detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+
+def main():
+    global stock_list
+    global con
+    global start_date
+    global finish_date
+
+    csvfile = open(symbols_filename, newline='')
+    reader = csv.reader(csvfile)
+
+    for row in reader:
+        stock_list.append(row[0])
+
+    cur = con.cursor()
+
+    create_database_if_needed()
+
+    # print("in main:", start_date, type(start_date))
+    download_start_date = find_download_start_date(start_date)
+
+    download_finish_date = finish_date
+
+    if download_start_date <= download_finish_date:
+        download_stock_data(download_start_date, download_finish_date)
+    else:
+        print("Not downloading.")
+
+    # Load requested date range from the database
+    sql = '''
+    Select * From stock_data
+    Where Date >= ? and Date <= ?
+    '''
+    cur.execute(sql, [start_date - timedelta(days=extra_days),
+                      finish_date + timedelta(days=1)])
+
+    print('Database request start date, finish date:',
+          start_date - timedelta(days=extra_days),
+          finish_date + timedelta(days=1))
+
+    stock_group_df = pd.DataFrame(cur.fetchall(),
+                                  columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
+
+    con.close()
+
+    # store the list of stocks
+    stocks = stock_group_df["ticker"].unique().tolist()
+
+    stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
+
+    # print('stock_group_df:', stock_group_df)
+    valid_stock_symbol = stocks[0]
+    # Skipping for now
+    print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
+
+    # Need to drop any extra rows
+
+    # Find actual start date
+    # The second index "name" is the date
+    database_start_date = stock_group_df.iloc[0].name[1]
+
+    # Find actual finish date
+    database_finish_date = stock_group_df.iloc[-1].name[1]
+    print("Dataframe range:", database_start_date, database_finish_date)
+
+    # to do: step through time, sending a window of data to find_list, to backtest
+    find_list(stock_group_df)
 
 
 if __name__ == '__main__':
