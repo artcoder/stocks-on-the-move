@@ -179,6 +179,8 @@ def main():
     cur.execute(sql, [start_date - timedelta(days=extra_days),
                       finish_date + timedelta(days=1)])
 
+    con.close()
+
     print('Database request start date, finish date:',
           start_date - timedelta(days=extra_days),
           finish_date + timedelta(days=1))
@@ -201,13 +203,10 @@ def main():
     # Find actual start date
     # The second index "name" is the date
     database_start_date = stock_group_df.iloc[0].name[1]
-    print("Database start date:", database_start_date)
 
     # Find actual finish date
     database_finish_date = stock_group_df.iloc[-1].name[1]
-    print("Database finish date:", database_finish_date)
-
-    # con.close()
+    print("Dataframe range:", database_start_date, database_finish_date)
 
     # def find_list(window_df)
     ####
@@ -237,20 +236,9 @@ def main():
         print("\r", stock, end='')
 
         # Get last 90 trading days of this stock
-        # stock_group_df
+        # maybe make a copy, in case adding the 'ln' column changes the original stock_group_df
+        stock_df = stock_group_df.loc[stock].iloc[-90:]
 
-        sql = '''
-        Select * From stock_data
-        Where ticker = ?
-        Order By date Desc
-        Limit 90
-        '''
-        cur.execute(sql, [stock])
-        # t = cur.fetchall()
-        # print('t:', t)
-        stock_df = pd.DataFrame(cur.fetchall(),
-                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-        stock_df = stock_df.set_index(['date']).sort_index()
 
         # Calculate adjusted slope
         # Regression of the natural logarithm of price
@@ -279,6 +267,7 @@ def main():
         # if count > 5:
         #     break
 
+
         # Find if the stock moved +-15% in across 2 trading days
         jumped[stock] = False
         first_time = True
@@ -303,46 +292,14 @@ def main():
             below_25_percent_growth[stock] = True
 
 
-        # get last 100 trading days of this stock
-        # sql = '''
-        #   Select * From stock_data
-        #   Where ticker = ?
-        #   Order By date Desc
-        #   Limit 100
-        #   '''
-        # cur.execute(sql, [stock])
-        # stock_100_df = pd.DataFrame(cur.fetchall(),
-        #                            columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-        # stock_100_df = stock_100_df.set_index(['date']).sort_index()
-
-        # calculate the 100 day "moving" average
-        # hundred_day_average[stock] = stock_100_df["close"].mean()
-        # last_price[stock] = stock_100_df['close'].iloc[-1]
-        # if last_price[stock] < hundred_day_average[stock]:
-        #    below_100_day_average[stock] = True
-        # else:
-        #    below_100_day_average[stock] = False
-
-
-        # get last 21 trading days of this stock
-        sql = '''
-           Select * From stock_data
-           Where ticker = ?
-           Order By date Desc
-           Limit 21
-           '''
-        cur.execute(sql, [stock])
-        stock_df = pd.DataFrame(cur.fetchall(),
-                                columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
-        stock_df = stock_df.set_index(['date']).sort_index()
+        # Calculate Average True Range (20 days)
+        stock_df = stock_group_df.loc[stock].iloc[-21:]
 
         atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
         atr_20[stock] = atr[-1]
 
         shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
 
-
-    con.close()
 
     print("\rAnnualized rate of return, r squared, shares:")
 
