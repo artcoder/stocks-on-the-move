@@ -179,8 +179,6 @@ def main():
     cur.execute(sql, [start_date - timedelta(days=extra_days),
                       finish_date + timedelta(days=1)])
 
-    con.close()
-
     print('Database request start date, finish date:',
           start_date - timedelta(days=extra_days),
           finish_date + timedelta(days=1))
@@ -188,6 +186,8 @@ def main():
     stock_group_df = pd.DataFrame(cur.fetchall(),
                                   columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 
+    con.close()
+    
     # store the list of stocks
     stocks = stock_group_df["ticker"].unique().tolist()
 
