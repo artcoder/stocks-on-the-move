@@ -28,7 +28,7 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = False
+download = True
 maximum_trading_days_needed = 100  # for 100 day moving average
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -187,7 +187,7 @@ def main():
                                   columns=['date', 'ticker', 'open', 'high', 'low', 'close', 'volume'])
 
     con.close()
-    
+
     # store the list of stocks
     stocks = stock_group_df["ticker"].unique().tolist()
 
@@ -238,7 +238,6 @@ def main():
         # Get last 90 trading days of this stock
         # maybe make a copy, in case adding the 'ln' column changes the original stock_group_df
         stock_df = stock_group_df.loc[stock].iloc[-90:]
-
 
         # Calculate adjusted slope
         # Regression of the natural logarithm of price
