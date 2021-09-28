@@ -19,9 +19,7 @@ import math
 import pickle
 import numpy as np
 from sklearn.linear_model import LinearRegression
-# import talib
 import pandas_ta as ta
-# import traceback
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -139,6 +137,7 @@ def download_stock_data(download_start_date, download_finish_date):
 #
 
 
+# Could return a list of 10 stocks with the number of dollars to invest in each
 def find_list(stock_group_df):
 
     # Calculate indicators
@@ -154,9 +153,6 @@ def find_list(stock_group_df):
     predicted_y = {}
     jumped = {}
     above_predicted = {}
-    hundred_day_average = {}
-    last_price = {}
-    below_100_day_average = {}
     below_25_percent_growth = {}
     atr_20 = {}
     shares_to_own = {}
@@ -247,9 +243,6 @@ def find_list(stock_group_df):
         elif below_25_percent_growth[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Below 25% annual growth rate'
-        # elif below_100_day_average[stock]:
-        #    ranking_string = 'X'
-        #    explanation_string = explanation_string + 'Below 100 day average'
         elif above_predicted[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Above predicted price'
