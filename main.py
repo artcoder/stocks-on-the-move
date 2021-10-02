@@ -233,7 +233,7 @@ def find_list(stock_group_df):
     output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
 
     count = 1
-    for t in output[0:25]:
+    for t in output[0:15]:
         stock = t[0]
         explanation_string = ''
 
@@ -243,6 +243,7 @@ def find_list(stock_group_df):
         elif below_25_percent_growth[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Below 25% annual growth rate'
+            continue
         elif above_predicted[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Above predicted price'
@@ -262,7 +263,7 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        # figure.show()
+        figure.show()
 
         #if len(explanation_string) == 0:
         #    figure.show()
