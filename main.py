@@ -14,6 +14,7 @@ import operator
 import sys
 import pandas as pd
 import yfinance as yf
+import robin_stocks.robinhood as rs
 import sqlite3
 import math
 import pickle
@@ -102,6 +103,19 @@ def download_stock_data(download_start_date, download_finish_date):
                            start=(download_start_date - timedelta(days=extra_days)),
                            end=(download_finish_date + timedelta(days=1)),
                            group_by='ticker')
+
+        # use Robinhood to get stock data
+        # https://robin-stocks.readthedocs.io/en/latest/index.html
+        # rs.login()
+        # stock_list = rs.stocks.get_stock_historicals(stock_list, interval='day', span='week', bounds='regular', info=None)
+        # stock_df = pd.DataFrame(stock_list)
+        # stock_df = stock_df.astype({'open_price': float,
+        #                            'close_price': float,
+        #                            'high_price': float,
+        #                            'low_price': float,
+        #                            'volume': int,
+        #                            })
+        # rs.logout()
 
         data.to_pickle(pickle_filename)
     else:
