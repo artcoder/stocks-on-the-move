@@ -107,14 +107,24 @@ def download_stock_data(download_start_date, download_finish_date):
         # use Robinhood to get stock data
         # https://robin-stocks.readthedocs.io/en/latest/index.html
         # rs.login()
-        # stock_list = rs.stocks.get_stock_historicals(stock_list, interval='day', span='week', bounds='regular', info=None)
-        # stock_df = pd.DataFrame(stock_list)
-        # stock_df = stock_df.astype({'open_price': float,
-        #                            'close_price': float,
-        #                            'high_price': float,
-        #                            'low_price': float,
-        #                            'volume': int,
-        #                            })
+        # stock_price_list = rs.stocks.get_stock_historicals(stock_list[:10], interval='day', span='year', bounds='regular', info=None)
+        # data = pd.DataFrame(stock_price_list)
+        # data = data.astype({'open_price': float,
+        #                    'close_price': float,
+        #                    'high_price': float,
+        #                    'low_price': float,
+        #                    'volume': int,
+        #                    'symbol': str
+        #                    })
+
+        # data = data.rename(columns={'begins_at': 'Date',
+        #                         'open_price': 'Open',
+        #                         'close_price': 'Close',
+        #                         'high_price': 'High',
+        #                         'low_price': 'Low',
+        #                         'symbol': 'Ticker'})
+
+        # data['Date'] = pd.to_datetime(data['Date'])
         # rs.logout()
 
         data.to_pickle(pickle_filename)
@@ -247,7 +257,7 @@ def find_list(stock_group_df):
     output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
 
     count = 1
-    for t in output[0:15]:
+    for t in output[0:25]:
         stock = t[0]
         explanation_string = ''
 
