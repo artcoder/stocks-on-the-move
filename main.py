@@ -104,29 +104,6 @@ def download_stock_data(download_start_date, download_finish_date):
                            end=(download_finish_date + timedelta(days=1)),
                            group_by='ticker')
 
-        # use Robinhood to get stock data
-        # https://robin-stocks.readthedocs.io/en/latest/index.html
-        # rs.login()
-        # stock_price_list = rs.stocks.get_stock_historicals(stock_list[:10], interval='day', span='year', bounds='regular', info=None)
-        # data = pd.DataFrame(stock_price_list)
-        # data = data.astype({'open_price': float,
-        #                    'close_price': float,
-        #                    'high_price': float,
-        #                    'low_price': float,
-        #                    'volume': int,
-        #                    'symbol': str
-        #                    })
-
-        # data = data.rename(columns={'begins_at': 'Date',
-        #                         'open_price': 'Open',
-        #                         'close_price': 'Close',
-        #                         'high_price': 'High',
-        #                         'low_price': 'Low',
-        #                         'symbol': 'Ticker'})
-
-        # data['Date'] = pd.to_datetime(data['Date'])
-        # rs.logout()
-
         data.to_pickle(pickle_filename)
     else:
         pickle_file = open(pickle_filename, 'rb')
@@ -159,6 +136,70 @@ def download_stock_data(download_start_date, download_finish_date):
     con.commit()
     print("\r                                                    ")
 #
+
+
+def download_stock_data_robin(download_start_date, download_finish_date):
+    global con
+    global stock_list
+
+    if download:
+        # use Robinhood to get stock data
+        # https://robin-stocks.readthedocs.io/en/latest/index.html
+        rs.login()
+        stock_price_list = rs.stocks.get_stock_historicals(stock_list[:10], interval='day', span='year', bounds='regular', info=None)
+        data = pd.DataFrame(stock_price_list)
+        data = data.astype({'open_price': float,
+                            'close_price': float,
+                            'high_price': float,
+                            'low_price': float,
+                            'volume': int,
+                            'symbol': str
+                            })
+
+        data = data.rename(columns={'begins_at': 'Date',
+                                    'open_price': 'Open',
+                                    'close_price': 'Close',
+                                    'high_price': 'High',
+                                    'low_price': 'Low',
+                                    'symbol': 'Ticker'})
+
+        data['Date'] = pd.to_datetime(data['Date'])
+
+        # rs.logout()
+
+        data.to_pickle(pickle_filename)
+    else:
+        pickle_file = open(pickle_filename, 'rb')
+        data = pickle.load(pickle_file)
+
+    # https://stackoverflow.com/questions/63107594/how-to-deal-with-multi-level-column-names-downloaded-with-yfinance/63107801#63107801
+    t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+    t_df = t_df.reset_index()
+
+    cur = con.cursor()
+
+    # This would insert dataframe data into database, but it fails if a date and ticker already exist
+    # t_df.to_sql('stock_data', con, if_exists='append', index=False)
+
+    print('Inserting data into database...')
+    for i in range(len(t_df)):
+        sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
+              'values (?,?,?,?,?,?,?)'
+        try:
+            cur.execute(sql, (t_df.iloc[i].get('Date'),
+                              t_df.iloc[i].get('Ticker'),
+                              t_df.iloc[i].get('Adj Close'),
+                              t_df.iloc[i].get('High'),
+                              t_df.iloc[i].get('Low'),
+                              t_df.iloc[i].get('Open'),
+                              t_df.iloc[i].get('Volume')))
+        except sqlite3.IntegrityError:
+            print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
+
+    con.commit()
+    print("\r                                                    ")
+#
+
 
 
 # Could return a list of 10 stocks with the number of dollars to invest in each
@@ -346,6 +387,7 @@ def main():
 
     # store the list of stocks
     stocks = stock_group_df["ticker"].unique().tolist()
+    print('Length of a stocks:', len(stocks))
 
     stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
 
