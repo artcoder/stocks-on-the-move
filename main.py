@@ -317,17 +317,21 @@ def find_list(stock_group_df):
     output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
 
     count = 1
-    for t in output[0:25]:
+    for t in output:
+
+        if count > 10:
+            break
+
         stock = t[0]
         explanation_string = ''
 
-        if jumped[stock]:
-            ranking_string = 'X'
-            explanation_string = 'Jumped >15% '
-        elif below_25_percent_growth[stock]:
+        if below_25_percent_growth[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Below 25% annual growth rate'
             continue
+        elif jumped[stock]:
+            ranking_string = 'X'
+            explanation_string = 'Jumped >15% '
         elif above_predicted[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Above predicted price'
@@ -383,8 +387,8 @@ def main():
     download_finish_date = finish_date
 
     if download_start_date <= download_finish_date:
-        #download_stock_data(download_start_date, download_finish_date)
-        download_stock_data_robinhood(download_start_date, download_finish_date)
+        download_stock_data(download_start_date, download_finish_date)
+        #download_stock_data_robinhood(download_start_date, download_finish_date)
     else:
         print("Not downloading.")
 
