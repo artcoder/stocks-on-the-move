@@ -28,7 +28,7 @@ database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
-maximum_trading_days_needed = 100  # for 100 day moving average
+maximum_trading_days_needed = 300
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
 # start = finish - timedelta(days=130)
@@ -351,7 +351,7 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        figure.show()
+        # figure.show()
 
         #if len(explanation_string) == 0:
         #    figure.show()
