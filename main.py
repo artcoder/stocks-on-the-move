@@ -361,7 +361,7 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        figure.show()
+        #figure.show()
 
         #if len(explanation_string) == 0:
         #    figure.show()
@@ -442,6 +442,13 @@ def main():
     database_finish_date = stock_group_df.iloc[-1].name[0]
     print("Dataframe range:", database_start_date, database_finish_date)
 
+    #current indicators
+    trading_dates = stock_group_df.index.unique(level=0)
+    window_df = stock_group_df.loc[trading_dates[-91:]]
+    window_df = window_df.reset_index()
+    window_df = window_df.set_index(['ticker', 'date']).sort_index()
+    find_list(window_df)
+
     # to do: step through time, sending a window of data to find_list, to backtest
     # level 0 of the index has the dates
     trading_dates = stock_group_df.index.unique(level=0)
@@ -451,7 +458,6 @@ def main():
     window_df = window_df.set_index(['ticker', 'date']).sort_index()
 
     find_list(window_df)
-    #find_list(stock_group_df)
 
 
 if __name__ == '__main__':
