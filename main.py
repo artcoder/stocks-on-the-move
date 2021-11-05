@@ -27,7 +27,8 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-download = True
+# download = True
+download = False
 maximum_trading_days_needed = 300
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -241,9 +242,17 @@ def find_list(stock_group_df):
     atr_20 = {}
     shares_to_own = {}
 
+    # print(stock_group_df)
+
+    window_start_date = stock_group_df.iloc[0].name[1]
+    window_finish_date = stock_group_df.iloc[-1].name[1]
+    print("Window range:", window_start_date, window_finish_date)
+
+    tickers = stock_group_df.index.unique(level=0)
+
     print('Calculating indicators')
     count = 0
-    for stock in stock_list:
+    for stock in tickers:
         print("\r", stock, end='')
 
         # Get last 90 trading days of this stock
@@ -319,7 +328,7 @@ def find_list(stock_group_df):
     count = 1
     for t in output:
 
-        if count > 10:
+        if count > 15:
             break
 
         stock = t[0]
@@ -335,6 +344,7 @@ def find_list(stock_group_df):
         elif above_predicted[stock]:
             ranking_string = 'X'
             explanation_string = explanation_string + 'Above predicted price'
+            count = count + 1
         else:
             ranking_string = str(count)
             explanation_string = ''
@@ -351,7 +361,7 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        # figure.show()
+        figure.show()
 
         #if len(explanation_string) == 0:
         #    figure.show()
@@ -413,25 +423,35 @@ def main():
     stocks = stock_group_df["ticker"].unique().tolist()
     print('Length of a stocks:', len(stocks))
 
-    stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
+    # stock_group_df = stock_group_df.set_index(['ticker', 'date']).sort_index()
+    stock_group_df = stock_group_df.set_index(['date', 'ticker']).sort_index()
 
     # print('stock_group_df:', stock_group_df)
     valid_stock_symbol = stocks[0]
     # Skipping for now
-    print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
+    # below is broken since the indexes were switched
+    # print('Length of a stock in stock_group_df:', len(stock_group_df.loc[valid_stock_symbol]))
 
     # Need to drop any extra rows
 
     # Find actual start date
     # The second index "name" is the date
-    database_start_date = stock_group_df.iloc[0].name[1]
+    database_start_date = stock_group_df.iloc[0].name[0]
 
     # Find actual finish date
-    database_finish_date = stock_group_df.iloc[-1].name[1]
+    database_finish_date = stock_group_df.iloc[-1].name[0]
     print("Dataframe range:", database_start_date, database_finish_date)
 
     # to do: step through time, sending a window of data to find_list, to backtest
-    find_list(stock_group_df)
+    # level 0 of the index has the dates
+    trading_dates = stock_group_df.index.unique(level=0)
+    window_df = stock_group_df.loc[ trading_dates[0:91] ]
+
+    window_df = window_df.reset_index()
+    window_df = window_df.set_index(['ticker', 'date']).sort_index()
+
+    find_list(window_df)
+    #find_list(stock_group_df)
 
 
 if __name__ == '__main__':
