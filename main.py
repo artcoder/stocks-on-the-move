@@ -27,9 +27,14 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-# download = True
-download = False
+download = True
+# download = False
+
 maximum_trading_days_needed = 300
+window_step_size = 5
+
+#this would vary with the indicator calculation
+window_trading_days_needed = 90
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
 # start = finish - timedelta(days=130)
@@ -449,9 +454,19 @@ def main():
     window_df = window_df.set_index(['ticker', 'date']).sort_index()
     find_list(window_df)
 
-    # to do: step through time, sending a window of data to find_list, to backtest
+    # to do: to backtest, step through time, sending a window of data to find_list
     # level 0 of the index has the dates
     trading_dates = stock_group_df.index.unique(level=0)
+    #starts = range(0, maximum_trading_days_needed  - window_trading_days_needed, window_step_size)
+    #for s in starts:
+        #start_index = s
+        #finish index = start_index + window_trading_days_needed
+        #window_df = stock_group_df.loc[trading_dates[start_index:finish index]]
+        #window_df = window_df.reset_index()
+        #window_df = window_df.set_index(['ticker', 'date']).sort_index()
+
+        #find_list(window_df)
+
     window_df = stock_group_df.loc[ trading_dates[0:91] ]
 
     window_df = window_df.reset_index()
