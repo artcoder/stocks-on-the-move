@@ -30,7 +30,8 @@ pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
 # download = False
 
-maximum_trading_days_needed = 300
+backtest = False
+maximum_trading_days_needed = 600
 window_step_size = 5
 
 #this would vary with the indicator calculation
@@ -246,6 +247,7 @@ def find_list(stock_group_df):
     below_25_percent_growth = {}
     atr_20 = {}
     shares_to_own = {}
+    last_price = {}
 
     # print(stock_group_df)
 
@@ -263,6 +265,8 @@ def find_list(stock_group_df):
         # Get last 90 trading days of this stock
         # maybe make a copy, in case adding the 'ln' column changes the original stock_group_df
         stock_df = stock_group_df.loc[stock].iloc[-90:]
+
+        last_price[stock] = stock_df['close'][0]
 
         # Calculate adjusted slope
         # Regression of the natural logarithm of price
@@ -320,12 +324,16 @@ def find_list(stock_group_df):
         stock_df = stock_group_df.loc[stock].iloc[-21:]
 
         atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
-        atr_20[stock] = atr[-1]
+        if atr is None:
+            print("* " + stock + " is None")
+            atr_20[stock] = None
+            shares_to_own[stock] = 0
+        else:
+            atr_20[stock] = atr[-1]
+            shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
 
-        shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
 
-
-    print("\rAnnualized rate of return, r squared, shares:")
+    print("\rR squared, price, shares, annualized rate of return :")
 
     # output = sorted(adjusted_slope.items(), key=operator.itemgetter(1), reverse=True)
     output = sorted(r_sq.items(), key=operator.itemgetter(1), reverse=True)
@@ -356,9 +364,10 @@ def find_list(stock_group_df):
             count = count + 1
 
         print(ranking_string, stock,
-              str(round(annualized_return[stock] * 100)) + '% ',
               round(t[1], 2),
+              round(last_price[stock], 2) ,
               round(shares_to_own[stock], 2),
+              str(round(annualized_return[stock] * 100)) + '%',
               explanation_string,
               )
         line1 = px.line(x=plotly_x[stock], y=y[stock], title=stock)
@@ -447,33 +456,27 @@ def main():
     database_finish_date = stock_group_df.iloc[-1].name[0]
     print("Dataframe range:", database_start_date, database_finish_date)
 
-    #current indicators
-    trading_dates = stock_group_df.index.unique(level=0)
-    window_df = stock_group_df.loc[trading_dates[-91:]]
-    window_df = window_df.reset_index()
-    window_df = window_df.set_index(['ticker', 'date']).sort_index()
-    find_list(window_df)
+    if backtest:
+        # back test: step through time, sending a window of data to find_list
+        # level 0 of the index has the dates
+        trading_dates = stock_group_df.index.unique(level=0)
+        starts = range(0, maximum_trading_days_needed  - window_trading_days_needed, window_step_size)
+        for s in starts:
+            start_index = s
+            finish_index = start_index + window_trading_days_needed
+            window_df = stock_group_df.loc[ trading_dates[ start_index:finish_index ] ]
+            window_df = window_df.reset_index()
+            window_df = window_df.set_index(['ticker', 'date']).sort_index()
 
-    # to do: to backtest, step through time, sending a window of data to find_list
-    # level 0 of the index has the dates
-    trading_dates = stock_group_df.index.unique(level=0)
-    #starts = range(0, maximum_trading_days_needed  - window_trading_days_needed, window_step_size)
-    #for s in starts:
-        #start_index = s
-        #finish index = start_index + window_trading_days_needed
-        #window_df = stock_group_df.loc[trading_dates[start_index:finish index]]
-        #window_df = window_df.reset_index()
-        #window_df = window_df.set_index(['ticker', 'date']).sort_index()
-
-        #find_list(window_df)
-
-    window_df = stock_group_df.loc[ trading_dates[0:91] ]
-
-    window_df = window_df.reset_index()
-    window_df = window_df.set_index(['ticker', 'date']).sort_index()
-
-    find_list(window_df)
-
+            find_list(window_df)
+            print("")
+    else:
+        #current indicators
+        trading_dates = stock_group_df.index.unique(level=0)
+        window_df = stock_group_df.loc[trading_dates[-91:]]
+        window_df = window_df.reset_index()
+        window_df = window_df.set_index(['ticker', 'date']).sort_index()
+        find_list(window_df)
 
 if __name__ == '__main__':
     main()
