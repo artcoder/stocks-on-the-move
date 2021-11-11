@@ -5,7 +5,7 @@
 #
 ###
 # David Guilbeau
-# Version 0.0.4
+# Version 0.0.5
 
 import csv
 import datetime
@@ -30,6 +30,7 @@ pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
 # download = False
 
+# backtest = True
 backtest = False
 maximum_trading_days_needed = 600
 window_step_size = 5
