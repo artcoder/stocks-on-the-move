@@ -27,11 +27,11 @@ import plotly.graph_objects as go
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
-#download = True
-download = False
+download = True
+# download = False
 
-backtest = True
-#backtest = False
+# backtest = True
+backtest = False
 maximum_trading_days_needed = 600
 window_step_size = 5
 
