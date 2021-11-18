@@ -367,7 +367,7 @@ def find_list(stock_group_df):
         print(ranking_string, stock,
               round(t[1], 2),
               round(last_price[stock], 2) ,
-              round(shares_to_own[stock], 2),
+              round(shares_to_own[stock], 1),
               str(round(annualized_return[stock] * 100)) + '%',
               explanation_string,
               )
