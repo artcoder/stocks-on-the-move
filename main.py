@@ -28,7 +28,7 @@ database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
-# download = False
+#download = False
 
 # backtest = True
 backtest = False
@@ -139,7 +139,8 @@ def download_stock_data(download_start_date, download_finish_date):
                               t_df.iloc[i].get('Open'),
                               t_df.iloc[i].get('Volume')))
         except sqlite3.IntegrityError:
-            print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
+            # print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
+            print("Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1])
 
     con.commit()
     print("\r                                                    ")
@@ -474,7 +475,7 @@ def main():
     else:
         #current indicators
         trading_dates = stock_group_df.index.unique(level=0)
-        window_df = stock_group_df.loc[trading_dates[-91:]]
+        window_df = stock_group_df.loc[trading_dates[-window_trading_days_needed:]]
         window_df = window_df.reset_index()
         window_df = window_df.set_index(['ticker', 'date']).sort_index()
         find_list(window_df)
