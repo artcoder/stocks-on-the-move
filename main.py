@@ -23,19 +23,21 @@ from sklearn.linear_model import LinearRegression
 import pandas_ta as ta
 import plotly.express as px
 import plotly.graph_objects as go
+import os
 
 database_filename = r'.\stock_data.sqlite3'
 symbols_filename = r'.\sp500symbols.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
-#download = False
+# download = False
 
 # backtest = True
 backtest = False
-maximum_trading_days_needed = 600
+# maximum_trading_days_needed = 600
+maximum_trading_days_needed = 100
 window_step_size = 5
 
-#this would vary with the indicator calculation
+# this would vary with the indicator calculation
 window_trading_days_needed = 90
 
 maximum_calendar_days_needed = maximum_trading_days_needed * 365.25 / 253
@@ -143,7 +145,8 @@ def download_stock_data(download_start_date, download_finish_date):
             print("Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1])
 
     con.commit()
-    print("\r                                                    ")
+    print("told database to commit")
+    # print("\r                                                    ")
 #
 
 
@@ -227,7 +230,6 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     con.commit()
     print("\r                                                    ")
 #
-
 
 
 # Could return a list of 10 stocks with the number of dollars to invest in each
@@ -385,11 +387,18 @@ def find_list(stock_group_df):
 #
 
 
+# Yahoo Finance has been unreliable with inserting a few days at a time,
+# so as a workaround, delete the database
+print("Deleting database file.")
+os.remove(database_filename)
+
 stock_list = []
 
+# con = sqlite3.connect(':memory:')
 # detect_types is for timestamp support
 con = sqlite3.connect(database_filename,
-                          detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+                      detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+
 
 def main():
     global stock_list
@@ -414,7 +423,7 @@ def main():
 
     if download_start_date <= download_finish_date:
         download_stock_data(download_start_date, download_finish_date)
-        #download_stock_data_robinhood(download_start_date, download_finish_date)
+        # download_stock_data_robinhood(download_start_date, download_finish_date)
     else:
         print("Not downloading.")
 
@@ -462,7 +471,7 @@ def main():
         # back test: step through time, sending a window of data to find_list
         # level 0 of the index has the dates
         trading_dates = stock_group_df.index.unique(level=0)
-        starts = range(0, maximum_trading_days_needed  - window_trading_days_needed, window_step_size)
+        starts = range(0, maximum_trading_days_needed - window_trading_days_needed, window_step_size)
         for s in starts:
             start_index = s
             finish_index = start_index + window_trading_days_needed
@@ -473,12 +482,13 @@ def main():
             find_list(window_df)
             print("")
     else:
-        #current indicators
+        # current indicators
         trading_dates = stock_group_df.index.unique(level=0)
         window_df = stock_group_df.loc[trading_dates[-window_trading_days_needed:]]
         window_df = window_df.reset_index()
         window_df = window_df.set_index(['ticker', 'date']).sort_index()
         find_list(window_df)
+
 
 if __name__ == '__main__':
     main()
