@@ -125,10 +125,11 @@ def download_stock_data(download_start_date, download_finish_date):
 
     cur = con.cursor()
 
+    print('Inserting data into database...')
+
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
     # t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
-    print('Inserting data into database...')
     for i in range(len(t_df)):
         sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
               'values (?,?,?,?,?,?,?)'
@@ -154,6 +155,8 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     global con
     global stock_list
 
+    print("download_stock_data_robinhood")
+
     if download:
         # use Robinhood to get stock data
         # https://robin-stocks.readthedocs.io/en/latest/index.html
@@ -162,11 +165,11 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
             stock_list[:10], interval='day', span='year', bounds='regular', info=None)
         data = pd.DataFrame(stock_price_list)
 
-        print(data)
+        # print(data)
 
         data = data.drop(columns=['session', 'interpolated'])
 
-        print(data)
+        # print(data)
 
         data = data.astype({'open_price': float,
                             'close_price': float,
@@ -176,8 +179,8 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                             'symbol': str
                             })
 
-        print('types changing')
-        print(data)
+        # print('types changed')
+        # print(data)
 
         data = data.rename(columns={'begins_at': 'Date',
                                     'open_price': 'Open',
@@ -189,8 +192,9 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
 
         data['Date'] = pd.to_datetime(data['Date'])
 
-        print('columns renaming')
-        print(data)
+        print('columns renamed')
+        # print(data)
+        print(list(data.columns))
 
         # rs.logout()
 
@@ -200,8 +204,11 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
         data = pickle.load(pickle_file)
 
     # https://stackoverflow.com/questions/63107594/how-to-deal-with-multi-level-column-names-downloaded-with-yfinance/63107801#63107801
-    t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
-    t_df = t_df.reset_index()
+    # t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+    # t_df = t_df.reset_index()
+    ## t_df = t_df.reset_index(drop=True)
+
+    t_df = data
 
     print('t_df')
     print(t_df)
@@ -209,7 +216,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     cur = con.cursor()
 
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
-    #t_df.to_sql('stock_data', con, if_exists='append', index=False)
+    # t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
     print('Inserting data into database...')
     for i in range(len(t_df)):
@@ -228,7 +235,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
             print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
 
     con.commit()
-    print("\r                                                    ")
+    # print("\r                                                    ")
 #
 
 
@@ -422,8 +429,8 @@ def main():
     download_finish_date = finish_date
 
     if download_start_date <= download_finish_date:
-        download_stock_data(download_start_date, download_finish_date)
-        # download_stock_data_robinhood(download_start_date, download_finish_date)
+        # download_stock_data(download_start_date, download_finish_date)
+        download_stock_data_robinhood(download_start_date, download_finish_date)
     else:
         print("Not downloading.")
 
