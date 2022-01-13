@@ -63,6 +63,7 @@ def create_database_if_needed():
     cur = con.cursor()
 
     # If table does not exist, create it
+    # (the python sqlite library doesn't seem to support dates just timestamps)
     sql = '''
     CREATE TABLE  IF NOT EXISTS stock_data
     (date timestamp NOT NULL,
@@ -177,7 +178,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                             'close_price': float,
                             'high_price': float,
                             'low_price': float,
-                            'volume': int,
+                            'volume': float,
                             'symbol': str
                             })
 
@@ -193,7 +194,9 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                                     'volume': 'Volume'})
 
         # drop the time part from the date fields
-        data['Date'] = pd.to_datetime(data['Date']).dt.date
+        # convert it back to datetime
+        # data['Date'] = pd.to_datetime(pd.to_datetime(data['Date']).dt.date)
+        data['Date'] = pd.to_datetime(data['Date'])
 
         print('columns renamed')
         # print(data)
@@ -406,8 +409,7 @@ except:
 
 stock_list = []
 
-# con = sqlite3.connect(':memory:')
-# detect_types is for timestamp support
+# detect_types is for timestamp / date support
 con = sqlite3.connect(database_filename,
                       detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
