@@ -158,7 +158,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     global con
     global stock_list
 
-    print("download_stock_data_robinhood")
+    print("in download_stock_data_robinhood")
 
     if download:
         # use Robinhood to get stock data
@@ -193,14 +193,12 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                                     'symbol': 'Ticker',
                                     'volume': 'Volume'})
 
-        # drop the time part from the date fields
-        # convert it back to datetime
-        # data['Date'] = pd.to_datetime(pd.to_datetime(data['Date']).dt.date)
-        data['Date'] = pd.to_datetime(data['Date'])
+        # localize the time
+        data['Date'] = pd.to_datetime(data['Date'], utc=True).dt.tz_localize(None)
 
-        print('columns renamed')
+        # print('columns renamed')
         # print(data)
-        print(list(data.columns))
+        # print(list(data.columns))
 
         # rs.logout()
 
@@ -212,7 +210,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     # https://stackoverflow.com/questions/63107594/how-to-deal-with-multi-level-column-names-downloaded-with-yfinance/63107801#63107801
     # t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
     # t_df = t_df.reset_index()
-    ## t_df = t_df.reset_index(drop=True)
+    # t_df = t_df.reset_index(drop=True)
 
     t_df = data
 
@@ -222,7 +220,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     cur = con.cursor()
 
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
-    # t_df.to_sql('stock_data', con, if_exists='append', index=False)
+    # t_df.to_sql('t_df', con, if_exists='append', index=False)
 
     print('Inserting data into database...')
     for i in range(len(t_df)):
@@ -230,7 +228,7 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
         sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
               'values (?,?,?,?,?,?,?)'
         try:
-            cur.execute(sql, (t_df.iloc[i].get('Date'),
+            cur.execute(sql, (t_df.iloc[i].get('Date').to_pydatetime(),
                               t_df.iloc[i].get('Ticker'),
                               t_df.iloc[i].get('Close'),
                               t_df.iloc[i].get('High'),
