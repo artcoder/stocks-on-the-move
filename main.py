@@ -34,7 +34,7 @@ download = True
 # backtest = True
 backtest = False
 # maximum_trading_days_needed = 600
-maximum_trading_days_needed = 100
+maximum_trading_days_needed = 90
 window_step_size = 5
 
 # this would vary with the indicator calculation
@@ -148,6 +148,8 @@ def download_stock_data(download_start_date, download_finish_date):
     con.commit()
     print("told database to commit")
     # print("\r                                                    ")
+
+
 #
 
 
@@ -190,7 +192,8 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                                     'symbol': 'Ticker',
                                     'volume': 'Volume'})
 
-        data['Date'] = pd.to_datetime(data['Date'])
+        # drop the time part from the date fields
+        data['Date'] = pd.to_datetime(data['Date']).dt.date
 
         print('columns renamed')
         # print(data)
@@ -235,13 +238,14 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
             print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
 
     con.commit()
-    # print("\r                                                    ")
+    print("Done database commit")
+
+
 #
 
 
 # Could return a list of 10 stocks with the number of dollars to invest in each
 def find_list(stock_group_df):
-
     # Calculate indicators
     account_value = 200
     slope = {}
@@ -306,7 +310,6 @@ def find_list(stock_group_df):
         # if count > 5:
         #     break
 
-
         # Find if the stock moved +-15% in across 2 trading days
         jumped[stock] = False
         first_time = True
@@ -324,12 +327,10 @@ def find_list(stock_group_df):
 
                 previous_price = price
 
-
         # Is the annualized growth rate below 25%?
         below_25_percent_growth[stock] = False
         if annualized_return[stock] * 100 < 25:
             below_25_percent_growth[stock] = True
-
 
         # Calculate Average True Range (20 days)
         stock_df = stock_group_df.loc[stock].iloc[-21:]
@@ -342,7 +343,6 @@ def find_list(stock_group_df):
         else:
             atr_20[stock] = atr[-1]
             shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
-
 
     print("\rR squared, price, shares, annualized rate of return :")
 
@@ -376,7 +376,7 @@ def find_list(stock_group_df):
 
         print(ranking_string, stock,
               round(t[1], 2),
-              round(last_price[stock], 2) ,
+              round(last_price[stock], 2),
               round(shares_to_own[stock], 1),
               str(round(annualized_return[stock] * 100)) + '%',
               explanation_string,
@@ -386,18 +386,23 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        #figure.show()
+        # figure.show()
 
-        #if len(explanation_string) == 0:
+        # if len(explanation_string) == 0:
         #    figure.show()
         #    continue
+
+
 #
 
 
 # Yahoo Finance has been unreliable with inserting a few days at a time,
 # so as a workaround, delete the database
 print("Deleting database file.")
-os.remove(database_filename)
+try:
+    os.remove(database_filename)
+except:
+    print('Could not delete the database file')
 
 stock_list = []
 
@@ -482,7 +487,7 @@ def main():
         for s in starts:
             start_index = s
             finish_index = start_index + window_trading_days_needed
-            window_df = stock_group_df.loc[ trading_dates[ start_index:finish_index ] ]
+            window_df = stock_group_df.loc[trading_dates[start_index:finish_index]]
             window_df = window_df.reset_index()
             window_df = window_df.set_index(['ticker', 'date']).sort_index()
 
