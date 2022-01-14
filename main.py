@@ -164,14 +164,23 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
         # use Robinhood to get stock data
         # https://robin-stocks.readthedocs.io/en/latest/index.html
         rs.login()
-        stock_price_list = rs.stocks.get_stock_historicals(
-            stock_list[:10], interval='day', span='year', bounds='regular', info=None)
-        data = pd.DataFrame(stock_price_list)
 
+        data = pd.DataFrame()
+
+        # It seems rs.stocks.get_stock_historicals can only handle about 75 stocks at a time,
+        # so do one at a time for now
+        for s in stock_list:
+            stock_price_list =\
+                rs.stocks.get_stock_historicals(
+                    s, interval='day', span='year', bounds='regular', info=None)
+
+            data = data.append(stock_price_list)
+
+        # print('columns', list(data.columns))
         # print(data)
 
-        data = data.drop(columns=['session', 'interpolated'])
-
+        data = data.drop(columns=[0, 'session', 'interpolated'])
+        # print('after dropped columns', list(data.columns))
         # print(data)
 
         data = data.astype({'open_price': float,
@@ -227,6 +236,9 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
 
         sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
               'values (?,?,?,?,?,?,?)'
+        # print("type for Date column is: ")
+        # print( type(t_df.iloc[i].get('Date').to_pydatetime()) )
+        # print( t_df.iloc[i].get('Date').to_pydatetime() )
         try:
             cur.execute(sql, (t_df.iloc[i].get('Date').to_pydatetime(),
                               t_df.iloc[i].get('Ticker'),
@@ -237,11 +249,11 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                               t_df.iloc[i].get('Volume')))
         except sqlite3.IntegrityError:
             print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
+        except sqlite3.InterfaceError:
+            print("Maybe the Date is not a time. Skipping: ", t_df.iloc[i].get('Date').to_pydatetime() )
 
     con.commit()
     print("Done database commit")
-
-
 #
 
 
@@ -392,8 +404,6 @@ def find_list(stock_group_df):
         # if len(explanation_string) == 0:
         #    figure.show()
         #    continue
-
-
 #
 
 
@@ -421,8 +431,12 @@ def main():
     csvfile = open(symbols_filename, newline='')
     reader = csv.reader(csvfile)
 
+    count = 1
     for row in reader:
+        # if row[0] ==
         stock_list.append(row[0])
+        # print(count, row[0])
+        count = count+1
 
     cur = con.cursor()
 
