@@ -15,3 +15,8 @@ pip install plotly
 pip install scikit-learn
 pip install yfinance
 pip install robin-stocks
+
+
+# S&P 500 Stocks
+
+https://raw.githubusercontent.com/datasets/s-and-p-500-companies/refs/heads/main/data/constituents.csv
