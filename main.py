@@ -20,7 +20,6 @@ import math
 import pickle
 import numpy as np
 from sklearn.linear_model import LinearRegression
-import pandas_ta as ta
 import plotly.express as px
 import plotly.graph_objects as go
 import os
@@ -34,7 +33,7 @@ download = True
 # backtest = True
 backtest = False
 # maximum_trading_days_needed = 600
-maximum_trading_days_needed = 90
+maximum_trading_days_needed = 100
 window_step_size = 5
 
 # this would vary with the indicator calculation
@@ -57,13 +56,25 @@ print("Requested start:", start_date, "finish:", finish_date)
 extra_days = 5  # extra days to look at in case the start date is not a trading day
 
 
+# From Google AI Overview for "python library average true range"
+def calculate_atr(df, window=14):
+
+    df['H-L'] = df['high'] - df['low']
+    df['H-C'] = abs(df['high'] - df['close'].shift(1))
+    df['L-C'] = abs(df['low'] - df['close'].shift(1))
+    df['TR'] = df[['H-L', 'H-C', 'L-C']].max(axis=1)
+    df['ATR'] = df['TR'].rolling(window).mean()
+    
+    return df['ATR']
+
+
+
 def create_database_if_needed():
     global con
 
     cur = con.cursor()
 
     # If table does not exist, create it
-    # (the python sqlite library doesn't seem to support dates just timestamps)
     sql = '''
     CREATE TABLE  IF NOT EXISTS stock_data
     (date timestamp NOT NULL,
@@ -126,11 +137,10 @@ def download_stock_data(download_start_date, download_finish_date):
 
     cur = con.cursor()
 
-    print('Inserting data into database...')
-
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
     # t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
+    print('Inserting data into database...')
     for i in range(len(t_df)):
         sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
               'values (?,?,?,?,?,?,?)'
@@ -149,8 +159,6 @@ def download_stock_data(download_start_date, download_finish_date):
     con.commit()
     print("told database to commit")
     # print("\r                                                    ")
-
-
 #
 
 
@@ -158,41 +166,30 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     global con
     global stock_list
 
-    print("in download_stock_data_robinhood")
-
     if download:
         # use Robinhood to get stock data
         # https://robin-stocks.readthedocs.io/en/latest/index.html
         rs.login()
+        stock_price_list = rs.stocks.get_stock_historicals(
+            stock_list[:10], interval='day', span='year', bounds='regular', info=None)
+        data = pd.DataFrame(stock_price_list)
 
-        data = pd.DataFrame()
+        print(data)
 
-        # It seems rs.stocks.get_stock_historicals can only handle about 75 stocks at a time,
-        # so do one at a time for now
-        for s in stock_list:
-            stock_price_list =\
-                rs.stocks.get_stock_historicals(
-                    s, interval='day', span='year', bounds='regular', info=None)
+        data = data.drop(columns=['session', 'interpolated'])
 
-            data = data.append(stock_price_list)
-
-        # print('columns', list(data.columns))
-        # print(data)
-
-        data = data.drop(columns=[0, 'session', 'interpolated'])
-        # print('after dropped columns', list(data.columns))
-        # print(data)
+        print(data)
 
         data = data.astype({'open_price': float,
                             'close_price': float,
                             'high_price': float,
                             'low_price': float,
-                            'volume': float,
+                            'volume': int,
                             'symbol': str
                             })
 
-        # print('types changed')
-        # print(data)
+        print('types changing')
+        print(data)
 
         data = data.rename(columns={'begins_at': 'Date',
                                     'open_price': 'Open',
@@ -202,12 +199,10 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                                     'symbol': 'Ticker',
                                     'volume': 'Volume'})
 
-        # localize the time
-        data['Date'] = pd.to_datetime(data['Date'], utc=True).dt.tz_localize(None)
+        data['Date'] = pd.to_datetime(data['Date'])
 
-        # print('columns renamed')
-        # print(data)
-        # print(list(data.columns))
+        print('columns renaming')
+        print(data)
 
         # rs.logout()
 
@@ -217,11 +212,8 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
         data = pickle.load(pickle_file)
 
     # https://stackoverflow.com/questions/63107594/how-to-deal-with-multi-level-column-names-downloaded-with-yfinance/63107801#63107801
-    # t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
-    # t_df = t_df.reset_index()
-    # t_df = t_df.reset_index(drop=True)
-
-    t_df = data
+    t_df = data.stack(level=0).rename_axis(['Date', 'Ticker']).reset_index(level=1)
+    t_df = t_df.reset_index()
 
     print('t_df')
     print(t_df)
@@ -229,18 +221,15 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
     cur = con.cursor()
 
     # This would insert dataframe data into database, but it fails if a date and ticker already exist
-    # t_df.to_sql('t_df', con, if_exists='append', index=False)
+    #t_df.to_sql('stock_data', con, if_exists='append', index=False)
 
     print('Inserting data into database...')
     for i in range(len(t_df)):
 
         sql = 'insert into stock_data (date, ticker, close, high, low, open, volume) ' \
               'values (?,?,?,?,?,?,?)'
-        # print("type for Date column is: ")
-        # print( type(t_df.iloc[i].get('Date').to_pydatetime()) )
-        # print( t_df.iloc[i].get('Date').to_pydatetime() )
         try:
-            cur.execute(sql, (t_df.iloc[i].get('Date').to_pydatetime(),
+            cur.execute(sql, (t_df.iloc[i].get('Date'),
                               t_df.iloc[i].get('Ticker'),
                               t_df.iloc[i].get('Close'),
                               t_df.iloc[i].get('High'),
@@ -249,16 +238,15 @@ def download_stock_data_robinhood(download_start_date, download_finish_date):
                               t_df.iloc[i].get('Volume')))
         except sqlite3.IntegrityError:
             print("\r", "Failed inserting:", str(t_df.iloc[i][0]), t_df.iloc[i][1], end='')
-        except sqlite3.InterfaceError:
-            print("Maybe the Date is not a time. Skipping: ", t_df.iloc[i].get('Date').to_pydatetime() )
 
     con.commit()
-    print("Done database commit")
+    print("\r                                                    ")
 #
 
 
 # Could return a list of 10 stocks with the number of dollars to invest in each
 def find_list(stock_group_df):
+
     # Calculate indicators
     account_value = 200
     slope = {}
@@ -323,6 +311,7 @@ def find_list(stock_group_df):
         # if count > 5:
         #     break
 
+
         # Find if the stock moved +-15% in across 2 trading days
         jumped[stock] = False
         first_time = True
@@ -340,15 +329,17 @@ def find_list(stock_group_df):
 
                 previous_price = price
 
+
         # Is the annualized growth rate below 25%?
         below_25_percent_growth[stock] = False
         if annualized_return[stock] * 100 < 25:
             below_25_percent_growth[stock] = True
 
+
         # Calculate Average True Range (20 days)
         stock_df = stock_group_df.loc[stock].iloc[-21:]
 
-        atr = ta.atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
+        atr = calculate_atr(stock_df['high'], stock_df['low'], stock_df['close'], length=20)
         if atr is None:
             print("* " + stock + " is None")
             atr_20[stock] = None
@@ -356,6 +347,7 @@ def find_list(stock_group_df):
         else:
             atr_20[stock] = atr[-1]
             shares_to_own[stock] = (account_value * 0.1) / atr_20[stock]
+
 
     print("\rR squared, price, shares, annualized rate of return :")
 
@@ -389,7 +381,7 @@ def find_list(stock_group_df):
 
         print(ranking_string, stock,
               round(t[1], 2),
-              round(last_price[stock], 2),
+              round(last_price[stock], 2) ,
               round(shares_to_own[stock], 1),
               str(round(annualized_return[stock] * 100)) + '%',
               explanation_string,
@@ -399,9 +391,9 @@ def find_list(stock_group_df):
         figure = go.Figure(data=line1.data + line2.data)
         figure.update_layout(title=stock)
 
-        # figure.show()
+        #figure.show()
 
-        # if len(explanation_string) == 0:
+        #if len(explanation_string) == 0:
         #    figure.show()
         #    continue
 #
@@ -412,12 +404,13 @@ def find_list(stock_group_df):
 print("Deleting database file.")
 try:
     os.remove(database_filename)
-except:
-    print('Could not delete the database file')
+except FileNotFoundError:
+    print("No file to delete.")
 
 stock_list = []
 
-# detect_types is for timestamp / date support
+# con = sqlite3.connect(':memory:')
+# detect_types is for timestamp support
 con = sqlite3.connect(database_filename,
                       detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
 
@@ -431,12 +424,8 @@ def main():
     csvfile = open(symbols_filename, newline='')
     reader = csv.reader(csvfile)
 
-    count = 1
     for row in reader:
-        # if row[0] ==
         stock_list.append(row[0])
-        # print(count, row[0])
-        count = count+1
 
     cur = con.cursor()
 
@@ -448,8 +437,8 @@ def main():
     download_finish_date = finish_date
 
     if download_start_date <= download_finish_date:
-        # download_stock_data(download_start_date, download_finish_date)
-        download_stock_data_robinhood(download_start_date, download_finish_date)
+        download_stock_data(download_start_date, download_finish_date)
+        # download_stock_data_robinhood(download_start_date, download_finish_date)
     else:
         print("Not downloading.")
 
@@ -501,7 +490,7 @@ def main():
         for s in starts:
             start_index = s
             finish_index = start_index + window_trading_days_needed
-            window_df = stock_group_df.loc[trading_dates[start_index:finish_index]]
+            window_df = stock_group_df.loc[ trading_dates[ start_index:finish_index ] ]
             window_df = window_df.reset_index()
             window_df = window_df.set_index(['ticker', 'date']).sort_index()
 
