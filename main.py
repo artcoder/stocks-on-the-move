@@ -14,6 +14,7 @@ import operator
 import sys
 import pandas as pd
 import yfinance as yf
+## ? import yfinance-cache as yfc
 import robin_stocks.robinhood as rs
 import sqlite3
 import math
@@ -25,7 +26,7 @@ import plotly.graph_objects as go
 import os
 
 database_filename = r'.\stock_data.sqlite3'
-symbols_filename = r'.\sp500symbols.csv'
+symbols_filename = r'.\constituents.csv'
 pickle_filename = r'.\stock_group_df_0.0.1.pkl'
 download = True
 # download = False
@@ -404,8 +405,8 @@ def find_list(stock_group_df):
 print("Deleting database file.")
 try:
     os.remove(database_filename)
-except FileNotFoundError:
-    print("No file to delete.")
+except:
+    print("Had trouble deleting.")
 
 stock_list = []
 
@@ -421,12 +422,15 @@ def main():
     global start_date
     global finish_date
 
-    csvfile = open(symbols_filename, newline='')
-    reader = csv.reader(csvfile)
+    csvfile = open(symbols_filename, "r", newline='')
+    reader = csv.DictReader(csvfile)
 
     for row in reader:
-        stock_list.append(row[0])
-
+        #Yahoo Finance uses a dash in stock symbols like BRK-B instead of a period like BRK.B
+        stock_list.append(row["Symbol"].replace(".", "-"))
+        # Debug
+        # print(row["Symbol"], end= ' ')
+        
     cur = con.cursor()
 
     create_database_if_needed()
